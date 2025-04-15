@@ -38,7 +38,7 @@ Thanks to an intuitive interface and extensive configuration options, the applic
     -   **OpenAI API:** Configuration for the OpenAI key.
     -   **ElevenLabs API:** API key, model ID, and filter options.
     -   **WebSocket:** Activation of a server for external control (e.g., via Stream Deck, expected command: `TOGGLE_RECORD`).
-    -   **Integration (SB):** Sending transcriptions to Streamer.bot via WebSocket, often used with PNGTuber-GPT addons.
+    -   **Integration (SB):** Sending transcriptions to Streamer.bot via WebSocket, can be used with [PNGTuber-GPT (v1.2)](https://github.com/happytunesai/PNGTuber-GPT) addon.
     -   **Language Selection:** Dropdown menu to switch GUI language (e.g., English, German).
     -   **Log Level Control:** Dropdown menu to set the minimum logging level for console output.
 
