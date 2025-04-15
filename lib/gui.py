@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 GUI-Klasse für die EZ STT Logger Anwendung unter Verwendung von CustomTkinter.
+Implementiert Internationalisierung (i18n) und Log-Level-Steuerung.
+Ermöglicht dynamisches Starten/Stoppen des WebSocket-Servers.
 """
 import customtkinter as ctk
 from tkinter import filedialog
-import tkinter as tk # Für tk.Menu benötigt
+import tkinter as tk
 import os
 import sys
 import subprocess
@@ -12,7 +14,8 @@ import threading
 import queue
 import json
 import re
-import time # Importiert für on_closing
+import time
+import logging
 
 # Importiere lokale Module/Objekte
 from lib.logger_setup import logger
@@ -22,66 +25,70 @@ from lib.constants import (
     DEFAULT_ELEVENLABS_MODEL, WEBSOCKET_PORT, DEFAULT_STREAMERBOT_WS_URL,
     DEFAULT_STT_PREFIX, FILTER_FILE, FILTER_FILE_EL, REPLACEMENTS_FILE,
     CONFIG_FILE, DEFAULT_SAMPLERATE, DEFAULT_CHANNELS, DEFAULT_ENERGY_THRESHOLD,
-    DEFAULT_TRANSCRIPTION_FILE
+    DEFAULT_TRANSCRIPTION_FILE, SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE, CONFIG_DIR,
+    LOG_LEVELS, LOG_LEVEL_NAMES, DEFAULT_LOG_LEVEL
 )
 from lib.utils import list_audio_devices_for_gui
 from lib.text_processing import (
     load_filter_patterns, load_replacements, save_replacements
 )
-# Importiere Startfunktionen für Hintergrund-Threads
 from lib.websocket_utils import start_websocket_server_thread, start_streamerbot_client_thread
-# Importiere den Worker-Thread selbst, um ihn zu starten
 from lib.audio_processing import recording_worker
-# Importiere save_config für on_closing
 from lib.config_manager import save_config
+from lib.language_manager import get_string, set_current_language, load_language
 
 
 class WhisperGUI(ctk.CTk):
     """Haupt-GUI-Anwendungsklasse."""
 
-    def __init__(self, app_config, key, queues, flags):
-        """
-        Initialisiert die GUI.
-        Args:
-            app_config (dict): Das geladene Konfigurations-Dictionary.
-            key (bytes): Der Verschlüsselungsschlüssel.
-            queues (dict): Ein Dictionary mit den Queues ('audio_q', 'gui_q', 'streamerbot_q').
-            flags (dict): Ein Dictionary mit den Thread-Steuerungs-Flags ('stop_recording', 'stop_streamerbot').
-        """
+    def __init__(self, app_config, key, queues, flags, handlers): # Füge handlers hinzu
+        """Initialisiert die GUI."""
         super().__init__()
         self.config = app_config
         self.encryption_key = key
-
-        # Übernehme Queues und Flags
-        self.audio_q = queues['audio_q']
+        self.queues = queues
         self.gui_q = queues['gui_q']
-        self.streamerbot_queue = queues['streamerbot_q']
+        self.flags = flags
         self.stop_recording_flag = flags['stop_recording']
         self.streamerbot_client_stop_event = flags['stop_streamerbot']
+        self.console_handler = handlers.get('console')
+        self.file_handler = handlers.get('file')
 
-        # Interner GUI-Zustand
+        self.current_lang_code = app_config.get("language_ui", DEFAULT_LANGUAGE)
+        self.lang_dict = load_language(self.current_lang_code)
+
+        self._initial_tab_keys_to_mode_map = {
+            "tab_local": "local", "tab_openai": "openai", "tab_elevenlabs": "elevenlabs",
+            "tab_websocket": "websocket", "tab_integration": "integration"
+        }
+        self._initial_tab_name_to_mode_map = {
+            get_string(key): mode for key, mode in self._initial_tab_keys_to_mode_map.items()
+        }
+        logger.debug(f"Initial Tab Name to Mode Map erstellt: {self._initial_tab_name_to_mode_map}")
+
         self.is_recording = False
-        self.available_mics = {} # Wird später gefüllt
-        self.loaded_filter_patterns = [] # Wird später gefüllt
-        self.loaded_filter_patterns_el = [] # Wird später gefüllt
-        self.loaded_replacements = {} # Wird später gefüllt
+        self.available_mics = {}
+        self.loaded_filter_patterns = []
+        self.loaded_filter_patterns_el = []
+        self.loaded_replacements = {}
 
-        # Referenzen auf Hintergrund-Threads und Events
         self.websocket_server_thread = None
-        self.websocket_stop_event = None # Wird von start_websocket_server_thread zurückgegeben
+        self.websocket_stop_event = None
         self.streamerbot_client_thread = None
-        self.recording_thread = None # Referenz auf den Worker-Thread
+        self.recording_thread = None
 
-        # --- GUI Aufbau ---
+        self.log_level_display_names = {
+            level_name: get_string(f"log_level_{level_name.lower()}")
+            for level_name in LOG_LEVEL_NAMES
+        }
+
         self._setup_window()
         self._create_widgets()
-        self._load_initial_gui_data() # Lädt Mikrofone, Filter, Ersetzungen für die GUI
-        self._start_background_tasks() # Startet WS-Server/Client basierend auf Config
-        self._update_status("Bereit.", log=False) # Initialer Status
+        self._load_initial_gui_data()
+        self._start_background_tasks() # Startet nur basierend auf initialer Config
+        self._update_status("status_ready", log=False)
 
-        # Starte die Verarbeitung der GUI-Queue
         self.after(100, self._process_gui_queue)
-        # Starte periodische Prüfung für Aufnahme-Button-Status
         self.after(500, self._check_record_button_state)
 
 
@@ -89,24 +96,21 @@ class WhisperGUI(ctk.CTk):
         """Konfiguriert das Hauptfenster der Anwendung."""
         logger.debug("Richte Hauptfenster ein...")
         try:
-            if os.path.exists(ICON_FILE):
-                 self.iconbitmap(ICON_FILE)
-            else:
-                 logger.warning(f"Icon-Datei '{ICON_FILE}' nicht gefunden.")
-        except Exception as e:
-            logger.warning(f"Fehler beim Setzen des Icons: {e}")
+            if os.path.exists(ICON_FILE): self.iconbitmap(ICON_FILE)
+            else: logger.warning(f"Icon-Datei '{ICON_FILE}' nicht gefunden.")
+        except Exception as e: logger.warning(f"Fehler beim Setzen des Icons: {e}")
 
-        self.title(f"EZ STT Logger GUI v.{APP_VERSION} (Tuneingeway)")
-        self.geometry("800x780") # Anfangsgröße
-        self.minsize(600, 500) # Mindestgröße
+        self.title(get_string("app_title", version=APP_VERSION))
+        self.geometry("850x780")
+        self.minsize(750, 550)
 
         ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("blue")
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1) # Hauptframe soll expandieren
+        self.grid_rowconfigure(0, weight=1)
 
-        self.protocol("WM_DELETE_WINDOW", self.on_closing) # Handler für Schließen-Button
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
         logger.debug("Hauptfenster eingerichtet.")
 
 
@@ -114,217 +118,237 @@ class WhisperGUI(ctk.CTk):
         """Erstellt und arrangiert alle Widgets in der GUI."""
         logger.debug("Erstelle Widgets...")
 
-        # --- Haupt-Frame ---
         self.main_frame = ctk.CTkFrame(self)
         self.main_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        self.main_frame.columnconfigure(0, weight=1) # Config-Spalte expandiert
-        self.main_frame.rowconfigure(1, weight=1)    # Ausgabebereich expandiert
+        self.main_frame.columnconfigure(0, weight=1)
+        self.main_frame.rowconfigure(1, weight=1)
 
-        # --- Oberer Konfigurations-Frame (hält Tabs und gemeinsame Einstellungen) ---
         self.top_config_frame = ctk.CTkFrame(self.main_frame)
         self.top_config_frame.grid(row=0, column=0, pady=(0,10), padx=0, sticky="ew")
-        self.top_config_frame.columnconfigure(1, weight=1) # Erlaube Widgets in Spalte 1 zu expandieren
+        self.top_config_frame.columnconfigure(1, weight=1)
+        self.top_config_frame.columnconfigure(0, weight=0)
+        self.top_config_frame.columnconfigure(1, weight=1)
+        self.top_config_frame.columnconfigure(2, weight=0)
+        self.top_config_frame.columnconfigure(3, weight=0)
+        self.top_config_frame.columnconfigure(4, weight=0)
+        self.top_config_frame.columnconfigure(5, weight=0)
 
-        # --- Tab-Ansicht ---
         self._create_tab_view()
-
-        # --- Gemeinsame Konfigurations-Widgets (Mic, Lang, Format, Datei, Puffer) ---
         self._create_common_config_widgets()
-
-        # --- Rechter Button-Frame (Aufnahme, Filter bearbeiten) ---
         self._create_right_button_frame()
-
-        # --- Ausgabe-Frame (Textbox, Leeren-Button) ---
+        self._create_language_selector()
         self._create_output_frame()
-
-        # --- Statusleisten-Frame ---
-        self.status_frame = ctk.CTkFrame(self.main_frame, height=30)
-        self.status_frame.grid(row=2, column=0, pady=(5,0), padx=0, sticky="ew")
-        self.status_label = ctk.CTkLabel(self.status_frame, text="Initialisiere...", anchor="w")
-        self.status_label.pack(side="left", padx=5, pady=2, fill="x", expand=True)
+        self._create_status_bar()
+        self._create_log_level_selector()
 
         logger.debug("Widgets erstellt.")
 
-    # --- Methoden zum Erstellen von Widget-Gruppen (_create_... ) ---
-
     def _create_tab_view(self):
         """Erstellt die Tab-Ansicht und ihren Inhalt."""
-        # Initialisiere CTkTabview OHNE command
         self.tab_view = ctk.CTkTabview(self.top_config_frame)
-        self.tab_view.grid(row=0, column=0, columnspan=4, padx=5, pady=5, sticky="ew")
+        self.tab_view.grid(row=0, column=0, columnspan=6, padx=5, pady=5, sticky="ew")
 
-        # Füge Tabs hinzu
-        self.tab_view.add("Lokal")
-        self.tab_view.add("OpenAI API")
-        self.tab_view.add("ElevenLabs API")
-        self.tab_view.add("WebSocket")
-        self.tab_view.add("Integration (SB)")
+        self.tab_local_ref = self.tab_view.add(get_string("tab_local"))
+        self.tab_openai_ref = self.tab_view.add(get_string("tab_openai"))
+        self.tab_elevenlabs_ref = self.tab_view.add(get_string("tab_elevenlabs"))
+        self.tab_websocket_ref = self.tab_view.add(get_string("tab_websocket"))
+        self.tab_integration_ref = self.tab_view.add(get_string("tab_integration"))
 
-        # Erstelle Widgets innerhalb jedes Tabs
-        self._create_local_tab(self.tab_view.tab("Lokal"))
-        self._create_openai_tab(self.tab_view.tab("OpenAI API"))
-        self._create_elevenlabs_tab(self.tab_view.tab("ElevenLabs API"))
-        self._create_websocket_tab(self.tab_view.tab("WebSocket"))
-        self._create_integration_tab(self.tab_view.tab("Integration (SB)"))
+        self._create_local_tab(self.tab_local_ref)
+        self._create_openai_tab(self.tab_openai_ref)
+        self._create_elevenlabs_tab(self.tab_elevenlabs_ref)
+        self._create_websocket_tab(self.tab_websocket_ref)
+        self._create_integration_tab(self.tab_integration_ref)
 
-        # Setze initialen Tab basierend auf geladener Config
         initial_mode = self.config.get("mode", "local")
-        initial_tab_name = self._mode_to_tab_name(initial_mode)
+        initial_tab_key = f"tab_{initial_mode}"
         try:
-            self.tab_view.set(initial_tab_name)
-            logger.debug(f"Initialer Tab gesetzt auf: {initial_tab_name}")
+            self.tab_view.set(get_string(initial_tab_key))
+            logger.debug(f"Initialer Tab gesetzt auf: {get_string(initial_tab_key)}")
         except Exception as e:
-             logger.warning(f"Konnte initialen Tab '{initial_tab_name}' nicht setzen: {e}. Fallback auf 'Lokal'.")
-             try:
-                 self.tab_view.set("Lokal") # Fallback versuchen
-             except Exception as e_fallback:
-                  logger.error(f"Fallback-Setzen des Tabs 'Lokal' fehlgeschlagen: {e_fallback}")
+             logger.warning(f"Konnte initialen Tab '{get_string(initial_tab_key)}' nicht setzen: {e}. Fallback.")
+             try: self.tab_view.set(get_string("tab_local"))
+             except Exception as e_fallback: logger.error(f"Fallback-Setzen fehlgeschlagen: {e_fallback}")
 
-        # Konfiguriere den command erst NACHDEM der initiale Tab gesetzt wurde
-        self.tab_view.configure(command=self._on_tab_change)
-        logger.debug("Tab-Command konfiguriert.")
-
-
+    # --- Tab-Erstellungsmethoden ---
     def _create_local_tab(self, tab):
-        """Erstellt Widgets für den 'Lokal' Tab."""
         tab.columnconfigure(1, weight=1)
-        ctk.CTkLabel(tab, text="Whisper Modell:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.model_label = ctk.CTkLabel(tab, text=get_string("label_model_whisper"))
+        self.model_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.model_combobox = ctk.CTkComboBox(tab, values=AVAILABLE_LOCAL_MODELS, width=150)
         self.model_combobox.set(self.config.get("local_model", DEFAULT_LOCAL_MODEL))
         self.model_combobox.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
     def _create_openai_tab(self, tab):
-        """Erstellt Widgets für den 'OpenAI API' Tab."""
         tab.columnconfigure(1, weight=1)
-        ctk.CTkLabel(tab, text="OpenAI API Key:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.openai_api_key_entry = ctk.CTkEntry(tab, placeholder_text="sk-...", width=400, show="*")
+        self.openai_api_key_label = ctk.CTkLabel(tab, text=get_string("label_api_key_openai"))
+        self.openai_api_key_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.openai_api_key_entry = ctk.CTkEntry(tab, placeholder_text=get_string("placeholder_api_key_openai"), width=400, show="*")
         self.openai_api_key_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         openai_key = self.config.get("openai_api_key", "") or os.getenv("OPENAI_API_KEY", "")
-        if openai_key:
-            self.openai_api_key_entry.insert(0, openai_key)
+        if openai_key: self.openai_api_key_entry.insert(0, openai_key)
 
     def _create_elevenlabs_tab(self, tab):
-        """Erstellt Widgets für den 'ElevenLabs API' Tab."""
         tab.columnconfigure(1, weight=1)
-        ctk.CTkLabel(tab, text="ElevenLabs API Key:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.elevenlabs_api_key_entry = ctk.CTkEntry(tab, placeholder_text="ElevenLabs Key...", width=400, show="*")
+        self.elevenlabs_api_key_label = ctk.CTkLabel(tab, text=get_string("label_api_key_elevenlabs"))
+        self.elevenlabs_api_key_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.elevenlabs_api_key_entry = ctk.CTkEntry(tab, placeholder_text=get_string("placeholder_api_key_elevenlabs"), width=400, show="*")
         self.elevenlabs_api_key_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         el_key = self.config.get("elevenlabs_api_key", "") or os.getenv("ELEVENLABS_API_KEY", "")
-        if el_key:
-            self.elevenlabs_api_key_entry.insert(0, el_key)
+        if el_key: self.elevenlabs_api_key_entry.insert(0, el_key)
 
-        ctk.CTkLabel(tab, text="ElevenLabs Modell ID:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.elevenlabs_model_id_entry = ctk.CTkEntry(tab, placeholder_text=f"z.B. {DEFAULT_ELEVENLABS_MODEL}", width=200)
+        self.elevenlabs_model_id_label = ctk.CTkLabel(tab, text=get_string("label_model_id_elevenlabs"))
+        self.elevenlabs_model_id_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.elevenlabs_model_id_entry = ctk.CTkEntry(tab, placeholder_text=get_string("placeholder_model_id_elevenlabs"), width=200)
         self.elevenlabs_model_id_entry.insert(0, self.config.get("elevenlabs_model_id", DEFAULT_ELEVENLABS_MODEL))
         self.elevenlabs_model_id_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
-        self.filter_parentheses_checkbox = ctk.CTkCheckBox(tab, text="Inhalte in (...) und [...] filtern")
-        if self.config.get("filter_parentheses", False):
-            self.filter_parentheses_checkbox.select()
+        self.filter_parentheses_checkbox = ctk.CTkCheckBox(tab, text=get_string("checkbox_filter_parentheses"))
+        if self.config.get("filter_parentheses", False): self.filter_parentheses_checkbox.select()
         self.filter_parentheses_checkbox.grid(row=2, column=0, columnspan=2, padx=5, pady=(10,5), sticky="w")
 
     def _create_websocket_tab(self, tab):
-        """Erstellt Widgets für den 'WebSocket' (Server) Tab."""
         tab.columnconfigure(1, weight=1)
-        ctk.CTkLabel(tab, text="Eingehend (Steuerung via WebSocket):", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, columnspan=3, padx=5, pady=(10,0), sticky="w")
-        self.websocket_enable_checkbox = ctk.CTkCheckBox(tab, text="WebSocket Server aktivieren")
-        if self.config.get("websocket_enabled", False):
-            self.websocket_enable_checkbox.select()
+        self.ws_incoming_label = ctk.CTkLabel(tab, text=get_string("label_websocket_incoming"), font=ctk.CTkFont(weight="bold"))
+        self.ws_incoming_label.grid(row=0, column=0, columnspan=3, padx=5, pady=(10,0), sticky="w")
+        # FIX: Checkbox bekommt jetzt einen command
+        self.websocket_enable_checkbox = ctk.CTkCheckBox(
+            tab,
+            text=get_string("checkbox_websocket_enable"),
+            command=self._on_websocket_enable_change # NEU
+        )
+        if self.config.get("websocket_enabled", False): self.websocket_enable_checkbox.select()
         self.websocket_enable_checkbox.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
-        ctk.CTkLabel(tab, text="Server Port:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        self.ws_port_label = ctk.CTkLabel(tab, text=get_string("label_websocket_port"))
+        self.ws_port_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
         self.websocket_port_entry = ctk.CTkEntry(tab, width=80)
         self.websocket_port_entry.insert(0, str(self.config.get("websocket_port", WEBSOCKET_PORT)))
         self.websocket_port_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        ctk.CTkLabel(tab, text=f"(Standard: {WEBSOCKET_PORT}, Neustart der App nötig bei Änderung)").grid(row=2, column=2, padx=5, pady=5, sticky="w")
-        ctk.CTkLabel(tab, text="Erwarteter Befehl für Aufnahme-Umschaltung: TOGGLE_RECORD").grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="w")
+        self.ws_port_info_label = ctk.CTkLabel(tab, text=get_string("label_websocket_port_info", port=WEBSOCKET_PORT))
+        self.ws_port_info_label.grid(row=2, column=2, padx=5, pady=5, sticky="w")
+        self.ws_cmd_info_label = ctk.CTkLabel(tab, text=get_string("label_websocket_command_info"))
+        self.ws_cmd_info_label.grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
     def _create_integration_tab(self, tab):
-        """Erstellt Widgets für den 'Integration (SB)' (Streamer.bot Client) Tab."""
         tab.columnconfigure(1, weight=1)
-        ctk.CTkLabel(tab, text="Ausgehend (Senden an Streamer.bot):", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, columnspan=3, padx=5, pady=(10,0), sticky="w")
-        self.streamerbot_ws_enable_checkbox = ctk.CTkCheckBox(tab, text="Transkriptionen an Streamer.bot senden")
-        if self.config.get("streamerbot_ws_enabled", False):
-            self.streamerbot_ws_enable_checkbox.select()
+        self.sb_outgoing_label = ctk.CTkLabel(tab, text=get_string("label_integration_outgoing"), font=ctk.CTkFont(weight="bold"))
+        self.sb_outgoing_label.grid(row=0, column=0, columnspan=3, padx=5, pady=(10,0), sticky="w")
+        # FIX: Checkbox bekommt jetzt einen command
+        self.streamerbot_ws_enable_checkbox = ctk.CTkCheckBox(
+            tab,
+            text=get_string("checkbox_integration_enable"),
+            command=self._on_streamerbot_enable_change # NEU
+        )
+        if self.config.get("streamerbot_ws_enabled", False): self.streamerbot_ws_enable_checkbox.select()
         self.streamerbot_ws_enable_checkbox.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
-        ctk.CTkLabel(tab, text="Streamer.bot URL:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        self.streamerbot_ws_url_entry = ctk.CTkEntry(tab, placeholder_text=DEFAULT_STREAMERBOT_WS_URL, width=300)
+        self.sb_url_label = ctk.CTkLabel(tab, text=get_string("label_integration_url"))
+        self.sb_url_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        self.streamerbot_ws_url_entry = ctk.CTkEntry(tab, placeholder_text=get_string("placeholder_integration_url"), width=300)
         self.streamerbot_ws_url_entry.insert(0, self.config.get("streamerbot_ws_url", DEFAULT_STREAMERBOT_WS_URL))
         self.streamerbot_ws_url_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        ctk.CTkLabel(tab, text="(Neustart der App nötig bei Änderung)").grid(row=2, column=2, padx=5, pady=5, sticky="w")
-        ctk.CTkLabel(tab, text="Vorangestellter Text:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.sb_url_info_label = ctk.CTkLabel(tab, text=get_string("label_integration_url_info"))
+        self.sb_url_info_label.grid(row=2, column=2, padx=5, pady=5, sticky="w")
+        self.sb_prefix_label = ctk.CTkLabel(tab, text=get_string("label_integration_prefix"))
+        self.sb_prefix_label.grid(row=3, column=0, padx=5, pady=5, sticky="w")
         self.stt_prefix_entry = ctk.CTkEntry(tab, width=400)
         self.stt_prefix_entry.insert(0, self.config.get("stt_prefix", DEFAULT_STT_PREFIX))
         self.stt_prefix_entry.grid(row=3, column=1, columnspan=2, padx=5, pady=5, sticky="w")
 
+    # --- (Restliche _create_... Methoden bleiben unverändert) ---
     def _create_common_config_widgets(self):
-        """Erstellt Widgets, die unterhalb der Tabs gemeinsam genutzt werden."""
         common_grid_row = 1
-        ctk.CTkLabel(self.top_config_frame, text="Mikrofon:").grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
-        self.mic_combobox = ctk.CTkComboBox(self.top_config_frame, values=["Lade..."], command=self._on_mic_change, width=300, state="readonly")
+        self.mic_label = ctk.CTkLabel(self.top_config_frame, text=get_string("label_mic"))
+        self.mic_label.grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
+        self.mic_combobox = ctk.CTkComboBox(self.top_config_frame, values=[get_string("combobox_mic_loading")], command=self._on_mic_change, width=300, state="readonly")
         self.mic_combobox.grid(row=common_grid_row, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
-        self.refresh_button = ctk.CTkButton(self.top_config_frame, text="Neu laden", width=100, command=self.populate_mic_dropdown)
-        self.refresh_button.grid(row=common_grid_row, column=3, padx=(5,15), pady=5, sticky="e")
+        self.refresh_button = ctk.CTkButton(self.top_config_frame, text=get_string("button_mic_reload"), width=100, command=self.populate_mic_dropdown)
+        self.refresh_button.grid(row=common_grid_row, column=3, padx=(5,5), pady=5, sticky="e")
         common_grid_row += 1
-        ctk.CTkLabel(self.top_config_frame, text="Sprache (leer=Auto):").grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
-        self.language_entry = ctk.CTkEntry(self.top_config_frame, placeholder_text="z.B. de, en, fr (ISO-Code)", width=150)
+
+        self.language_stt_label = ctk.CTkLabel(self.top_config_frame, text=get_string("label_language_stt"))
+        self.language_stt_label.grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
+        self.language_entry = ctk.CTkEntry(self.top_config_frame, placeholder_text=get_string("placeholder_language_stt"), width=150)
         self.language_entry.insert(0, self.config.get("language", ""))
         self.language_entry.grid(row=common_grid_row, column=1, padx=5, pady=5, sticky="w")
         common_grid_row += 1
-        ctk.CTkLabel(self.top_config_frame, text="Format:").grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
+
+        self.format_label = ctk.CTkLabel(self.top_config_frame, text=get_string("label_format"))
+        self.format_label.grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
         format_frame = ctk.CTkFrame(self.top_config_frame, fg_color="transparent")
         format_frame.grid(row=common_grid_row, column=1, columnspan=2, padx=0, pady=0, sticky="w")
         self.format_var = ctk.StringVar(value=self.config.get("output_format", DEFAULT_OUTPUT_FORMAT))
-        self.txt_radio = ctk.CTkRadioButton(format_frame, text="TXT", variable=self.format_var, value="txt")
+        self.txt_radio = ctk.CTkRadioButton(format_frame, text=get_string("radio_format_txt"), variable=self.format_var, value="txt")
         self.txt_radio.pack(side="left", padx=(0, 10), pady=5)
-        self.json_radio = ctk.CTkRadioButton(format_frame, text="JSON", variable=self.format_var, value="json")
+        self.json_radio = ctk.CTkRadioButton(format_frame, text=get_string("radio_format_json"), variable=self.format_var, value="json")
         self.json_radio.pack(side="left", padx=5, pady=5)
         common_grid_row += 1
-        ctk.CTkLabel(self.top_config_frame, text="Ausgabedatei:").grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
-        self.filepath_entry = ctk.CTkEntry(self.top_config_frame, placeholder_text="Standard: "+DEFAULT_TRANSCRIPTION_FILE, width=250) # Placeholder geändert
-        saved_path = self.config.get("output_filepath", "")
-        # FIX: Setze Default-Wert, wenn kein Pfad geladen wurde
-        if saved_path:
-            self.filepath_entry.insert(0, saved_path)
-        else:
-            self.filepath_entry.insert(0, DEFAULT_TRANSCRIPTION_FILE)
-            logger.info(f"Kein Ausgabepfad in Config gefunden, verwende Standard: {DEFAULT_TRANSCRIPTION_FILE}")
 
-        self.filepath_entry.grid(row=common_grid_row, column=1, padx=5, pady=5, sticky="ew")
-        self.browse_button = ctk.CTkButton(self.top_config_frame, text="Wählen...", width=80, command=self._browse_output_file)
-        self.browse_button.grid(row=common_grid_row, column=2, padx=(5,0), pady=5, sticky="w")
+        self.output_file_label = ctk.CTkLabel(self.top_config_frame, text=get_string("label_output_file"))
+        self.output_file_label.grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
+        self.filepath_entry = ctk.CTkEntry(self.top_config_frame, placeholder_text=get_string("placeholder_output_file", filename=DEFAULT_TRANSCRIPTION_FILE), width=250)
+        saved_path = self.config.get("output_filepath", "")
+        if saved_path: self.filepath_entry.insert(0, saved_path)
+        else: self.filepath_entry.insert(0, DEFAULT_TRANSCRIPTION_FILE); logger.info(f"Kein Ausgabepfad in Config gefunden, verwende Standard: {DEFAULT_TRANSCRIPTION_FILE}")
+        self.filepath_entry.grid(row=common_grid_row, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
+        self.browse_button = ctk.CTkButton(self.top_config_frame, text=get_string("button_browse"), width=80, command=self._browse_output_file)
+        self.browse_button.grid(row=common_grid_row, column=3, padx=(5,5), pady=5, sticky="w")
         common_grid_row += 1
-        ctk.CTkLabel(self.top_config_frame, text="Min. Puffer (s):").grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
+
+        self.min_buffer_label = ctk.CTkLabel(self.top_config_frame, text=get_string("label_min_buffer"))
+        self.min_buffer_label.grid(row=common_grid_row, column=0, padx=5, pady=5, sticky="w")
         self.min_buffer_entry = ctk.CTkEntry(self.top_config_frame, width=60)
         self.min_buffer_entry.insert(0, str(self.config.get("min_buffer_duration", DEFAULT_MIN_BUFFER_SEC)))
         self.min_buffer_entry.grid(row=common_grid_row, column=1, padx=5, pady=5, sticky="w")
-        ctk.CTkLabel(self.top_config_frame, text="Stille-Erkennung (s):").grid(row=common_grid_row, column=2, padx=(15, 5), pady=5, sticky="w")
+
+        self.silence_label = ctk.CTkLabel(self.top_config_frame, text=get_string("label_silence_threshold"))
+        self.silence_label.grid(row=common_grid_row, column=2, padx=(15, 5), pady=5, sticky="w")
         self.silence_threshold_entry = ctk.CTkEntry(self.top_config_frame, width=60)
         self.silence_threshold_entry.insert(0, str(self.config.get("silence_threshold", DEFAULT_SILENCE_SEC)))
         self.silence_threshold_entry.grid(row=common_grid_row, column=3, padx=5, pady=5, sticky="w")
         common_grid_row += 1
-        self.clear_log_checkbox = ctk.CTkCheckBox(self.top_config_frame, text="Logdatei bei Start leeren")
+
+        self.clear_log_checkbox = ctk.CTkCheckBox(self.top_config_frame, text=get_string("checkbox_clear_log"))
         if self.config.get("clear_log_on_start", False): self.clear_log_checkbox.select()
         self.clear_log_checkbox.grid(row=common_grid_row, column=1, columnspan=3, padx=5, pady=(10,5), sticky="w")
 
     def _create_right_button_frame(self):
-        """Erstellt den Frame rechts mit Aufnahme- und Bearbeiten-Buttons."""
         right_button_frame = ctk.CTkFrame(self.top_config_frame, fg_color="transparent")
-        right_button_frame.grid(row=1, column=4, rowspan=6, padx=(15,5), pady=5, sticky="ns")
+        right_button_frame.grid(row=1, column=4, rowspan=6, padx=(5,5), pady=5, sticky="ns")
+
         self.record_button_frame = ctk.CTkFrame(right_button_frame, fg_color="transparent")
         self.record_button_frame.pack(pady=(0,10), fill="x")
-        self.start_stop_button = ctk.CTkButton(self.record_button_frame, text="Aufnahme starten", command=self.toggle_recording, width=140, height=35)
+        self.start_stop_button = ctk.CTkButton(self.record_button_frame, text=get_string("button_start_recording"), command=self.toggle_recording, width=140, height=35)
         self.start_stop_button.pack(pady=(0,5))
         self.indicator_light = ctk.CTkFrame(self.record_button_frame, width=20, height=20, fg_color="grey", corner_radius=10)
         self.indicator_light.pack(pady=5)
-        self.edit_filter_button = ctk.CTkButton(right_button_frame, text="Filter bearbeiten...", width=140, command=self._edit_filter_file)
+
+        self.edit_filter_button = ctk.CTkButton(right_button_frame, text=get_string("button_edit_filter"), width=140, command=self._edit_filter_file)
         self.edit_filter_button.pack(pady=5, fill="x")
-        self.edit_replacements_button = ctk.CTkButton(right_button_frame, text="Ersetzungen bearb...", width=140, command=self._edit_replacements_file)
+        self.edit_replacements_button = ctk.CTkButton(right_button_frame, text=get_string("button_edit_replacements"), width=140, command=self._edit_replacements_file)
         self.edit_replacements_button.pack(pady=5, fill="x")
 
+    def _create_language_selector(self):
+        lang_frame = ctk.CTkFrame(self.top_config_frame, fg_color="transparent")
+        lang_frame.grid(row=1, column=5, rowspan=1, padx=(5, 10), pady=5, sticky="ne")
+
+        self.language_ui_label = ctk.CTkLabel(lang_frame, text=get_string("label_language_ui"))
+        self.language_ui_label.pack(pady=(0,2))
+
+        language_options = list(SUPPORTED_LANGUAGES.values())
+        current_display_language = SUPPORTED_LANGUAGES.get(self.current_lang_code, "??")
+
+        self.language_optionmenu = ctk.CTkOptionMenu(
+            lang_frame, values=language_options, command=self._on_language_change, width=120
+        )
+        if current_display_language not in language_options:
+             logger.warning(f"Gespeicherte Sprache '{current_display_language}' nicht in SUPPORTED_LANGUAGES gefunden. Fallback auf Default im Menü.")
+             current_display_language = SUPPORTED_LANGUAGES.get(DEFAULT_LANGUAGE, language_options[0])
+        self.language_optionmenu.set(current_display_language)
+        self.language_optionmenu.pack()
+
     def _create_output_frame(self):
-        """Erstellt den Ausgabebereich (Textbox) und den Leeren-Button."""
         self.output_frame = ctk.CTkFrame(self.main_frame)
-        self.output_frame.grid(row=1, column=0, pady=0, padx=0, sticky="nsew")
+        self.output_frame.grid(row=1, column=0, padx=0, pady=0, sticky="nsew")
         self.output_frame.columnconfigure(0, weight=1)
         self.output_frame.rowconfigure(0, weight=1)
         self.textbox = ctk.CTkTextbox(self.output_frame, wrap="word", state="disabled", font=("Segoe UI", 12))
@@ -333,134 +357,302 @@ class WhisperGUI(ctk.CTk):
         self.textbox.tag_config("warning_tag", foreground="orange")
         self.textbox.tag_config("info_tag", foreground="gray")
         self.textbox.bind("<Button-3>", self._show_context_menu)
-        self.clear_log_button = ctk.CTkButton(self.output_frame, text="Anzeige leeren", command=self._clear_textbox, width=120)
+        self.clear_log_button = ctk.CTkButton(self.output_frame, text=get_string("button_clear_output"), command=self._clear_textbox, width=120)
         self.clear_log_button.grid(row=1, column=0, pady=(0,5))
 
+    def _create_status_bar(self):
+        self.status_frame = ctk.CTkFrame(self.main_frame, height=30)
+        self.status_frame.grid(row=2, column=0, pady=(5,0), padx=0, sticky="ew")
+        self.status_frame.columnconfigure(0, weight=1)
+        self.status_frame.columnconfigure(1, weight=0)
+
+        self.status_label = ctk.CTkLabel(self.status_frame, text="...", anchor="w")
+        self.status_label.grid(row=0, column=0, padx=5, pady=2, sticky="ew")
+
+    def _create_log_level_selector(self):
+        log_level_frame = ctk.CTkFrame(self.status_frame, fg_color="transparent")
+        log_level_frame.grid(row=0, column=1, padx=(10, 5), pady=0, sticky="e")
+
+        self.log_level_label = ctk.CTkLabel(log_level_frame, text=get_string("label_log_level"), padx=5)
+        self.log_level_label.pack(side="left", padx=(0, 5))
+
+        level_display_options = list(self.log_level_display_names.values())
+        current_log_level_str = self.config.get("log_level", DEFAULT_LOG_LEVEL)
+        current_log_level_display = self.log_level_display_names.get(current_log_level_str, get_string("log_level_info"))
+
+        self.log_level_optionmenu = ctk.CTkOptionMenu(
+            log_level_frame,
+            values=level_display_options,
+            command=self._on_log_level_change,
+            width=110
+        )
+        if current_log_level_display not in level_display_options:
+             logger.warning(f"Gespeicherter Log-Level '{current_log_level_str}' -> '{current_log_level_display}' nicht in Optionen gefunden. Fallback.")
+             current_log_level_display = self.log_level_display_names.get(DEFAULT_LOG_LEVEL, get_string("log_level_info"))
+        self.log_level_optionmenu.set(current_log_level_display)
+        self.log_level_optionmenu.pack(side="left")
 
     # --- Initialisierung und Hintergrund-Tasks ---
-
     def _load_initial_gui_data(self):
-        """Lädt initiale Daten für die GUI (Mikrofone, Filter, Ersetzungen)."""
         logger.debug("Lade initiale GUI-Daten...")
-        self.populate_mic_dropdown() # Lade Mikrofone
-        # Lade Filter/Ersetzungen und speichere sie in Instanzvariablen
+        self.populate_mic_dropdown()
         self.loaded_filter_patterns = load_filter_patterns(FILTER_FILE)
         self.loaded_filter_patterns_el = load_filter_patterns(FILTER_FILE_EL)
         self.loaded_replacements = load_replacements(REPLACEMENTS_FILE)
         logger.debug("Initiale GUI-Daten geladen.")
 
     def _start_background_tasks(self):
-        """Startet Hintergrund-Threads/Tasks (WebSocket-Server/Client)."""
         logger.debug("Starte Hintergrund-Tasks...")
-        # Starte WebSocket-Server, wenn aktiviert
-        if self.config.get("websocket_enabled", False):
-            self._start_websocket_server()
-        else:
-            self._update_status("Bereit (WS Server deaktiviert).", log=False)
+        # Starte WS Server nur wenn in Config aktiviert (dynamisches Starten über Checkbox)
+        if self.config.get("websocket_enabled", False): self._start_websocket_server()
+        # Starte SB Client nur wenn in Config aktiviert (dynamisches Starten über Checkbox)
+        if self.config.get("streamerbot_ws_enabled", False): self._start_streamerbot_client()
+        self._update_initial_status()
 
-        # Starte Streamer.bot-Client, wenn aktiviert
-        if self.config.get("streamerbot_ws_enabled", False):
-            self._start_streamerbot_client()
-        else:
-             current_text = self.status_label.cget("text") # Hole aktuellen Text
-             if "SB Senden deaktiviert" not in current_text:
-                 # Füge Hinweis hinzu, wenn nicht schon vorhanden
-                 self._update_status(current_text + " (SB Senden deaktiviert)", log=False)
 
     # --- Widget Interaktions-Callbacks ---
+    def _on_language_change(self, selected_language_display_name):
+        logger.debug(f"Sprachänderung angefordert: {selected_language_display_name}")
+        selected_lang_code = None
+        for code, name in SUPPORTED_LANGUAGES.items():
+            if name == selected_language_display_name:
+                selected_lang_code = code
+                break
 
-    def _on_tab_change(self):
-        """Wird aufgerufen, wenn der ausgewählte Tab wechselt."""
+        if selected_lang_code and selected_lang_code != self.current_lang_code:
+            logger.info(f"Ändere Sprache zu: {selected_lang_code} ({selected_language_display_name})")
+            self.lang_dict = load_language(selected_lang_code)
+            self.current_lang_code = selected_lang_code
+            self.config["language_ui"] = selected_lang_code
+            self.log_level_display_names = {
+                level_name: get_string(f"log_level_{level_name.lower()}")
+                for level_name in LOG_LEVEL_NAMES
+            }
+            self._update_ui_texts()
+        elif not selected_lang_code:
+             logger.error(f"Konnte Sprachcode für '{selected_language_display_name}' nicht finden.")
+
+    # NEUE Callback-Funktion für Log-Level
+    def _on_log_level_change(self, selected_level_display_name):
+        """Wird aufgerufen, wenn ein neuer Log-Level ausgewählt wird."""
+        logger.debug(f"Log-Level Änderung angefordert: {selected_level_display_name}")
+        selected_level_str = None
+        for level_str, display_name in self.log_level_display_names.items():
+            if display_name == selected_level_display_name:
+                selected_level_str = level_str
+                break
+
+        if selected_level_str:
+            new_level = LOG_LEVELS.get(selected_level_str)
+            if new_level is not None and self.console_handler:
+                try:
+                    self.console_handler.setLevel(new_level)
+                    self.config["log_level"] = selected_level_str # Speichere String-Namen
+                    logger.info(f"Konsolen Log-Level auf {selected_level_str} ({selected_level_display_name}) gesetzt.")
+                    self._update_status("status_log_level_set", level=selected_level_display_name, is_key=True)
+                except Exception as e:
+                    logger.error(f"Fehler beim Setzen des Log-Levels für Konsole: {e}")
+                    self._update_status("status_error_generic", error=e, level="error", is_key=True)
+            elif not self.console_handler:
+                 logger.error("Konsolen-Handler nicht gefunden, kann Log-Level nicht setzen.")
+                 self._update_status("status_error_generic", error="Console handler missing", level="error", is_key=True)
+            else:
+                 logger.error(f"Ungültiger Log-Level String gefunden: {selected_level_str}")
+                 self._update_status("status_error_generic", error=f"Invalid level {selected_level_str}", level="error", is_key=True)
+        else:
+             logger.error(f"Konnte Log-Level String für '{selected_level_display_name}' nicht finden.")
+
+    # NEUE Callback-Funktion für WebSocket Checkbox
+    def _on_websocket_enable_change(self):
+        """Wird aufgerufen, wenn die WebSocket-Server Checkbox geändert wird."""
+        is_enabled = bool(self.websocket_enable_checkbox.get())
+        logger.info(f"WebSocket Server Checkbox geändert: {'Aktiviert' if is_enabled else 'Deaktiviert'}")
+        self.config["websocket_enabled"] = is_enabled # Aktualisiere Config sofort
+        if is_enabled:
+            self._start_websocket_server()
+        else:
+            self._stop_websocket_server()
+        self._update_initial_status() # Aktualisiere Statuszeile
+
+    # NEUE Callback-Funktion für Streamer.bot Checkbox
+    def _on_streamerbot_enable_change(self):
+        """Wird aufgerufen, wenn die Streamer.bot Checkbox geändert wird."""
+        is_enabled = bool(self.streamerbot_ws_enable_checkbox.get())
+        logger.info(f"Streamer.bot Client Checkbox geändert: {'Aktiviert' if is_enabled else 'Deaktiviert'}")
+        self.config["streamerbot_ws_enabled"] = is_enabled # Aktualisiere Config sofort
+        if is_enabled:
+            self._start_streamerbot_client()
+        else:
+            self._stop_streamerbot_client()
+        self._update_initial_status() # Aktualisiere Statuszeile
+
+
+    def _update_ui_texts(self):
+        """Aktualisiert alle textbasierten Widgets mit der aktuellen Sprache."""
+        logger.debug("Aktualisiere UI-Texte...")
+        self.title(get_string("app_title", version=APP_VERSION))
+        logger.warning("Tab-Namen können nach der Initialisierung nicht direkt aktualisiert werden.")
+
+        # Widgets in Tabs
+        self.model_label.configure(text=get_string("label_model_whisper"))
+        self.openai_api_key_label.configure(text=get_string("label_api_key_openai"))
+        self.openai_api_key_entry.configure(placeholder_text=get_string("placeholder_api_key_openai"))
+        self.elevenlabs_api_key_label.configure(text=get_string("label_api_key_elevenlabs"))
+        self.elevenlabs_api_key_entry.configure(placeholder_text=get_string("placeholder_api_key_elevenlabs"))
+        self.elevenlabs_model_id_label.configure(text=get_string("label_model_id_elevenlabs"))
+        self.elevenlabs_model_id_entry.configure(placeholder_text=get_string("placeholder_model_id_elevenlabs"))
+        self.filter_parentheses_checkbox.configure(text=get_string("checkbox_filter_parentheses"))
+        self.ws_incoming_label.configure(text=get_string("label_websocket_incoming"))
+        self.websocket_enable_checkbox.configure(text=get_string("checkbox_websocket_enable"))
+        self.ws_port_label.configure(text=get_string("label_websocket_port"))
+        self.ws_port_info_label.configure(text=get_string("label_websocket_port_info", port=WEBSOCKET_PORT))
+        self.ws_cmd_info_label.configure(text=get_string("label_websocket_command_info"))
+        self.sb_outgoing_label.configure(text=get_string("label_integration_outgoing"))
+        self.streamerbot_ws_enable_checkbox.configure(text=get_string("checkbox_integration_enable"))
+        self.sb_url_label.configure(text=get_string("label_integration_url"))
+        self.streamerbot_ws_url_entry.configure(placeholder_text=get_string("placeholder_integration_url"))
+        self.sb_url_info_label.configure(text=get_string("label_integration_url_info"))
+        self.sb_prefix_label.configure(text=get_string("label_integration_prefix"))
+
+        # Gemeinsame Widgets
+        self.mic_label.configure(text=get_string("label_mic"))
+        self.refresh_button.configure(text=get_string("button_mic_reload"))
+        self.language_stt_label.configure(text=get_string("label_language_stt"))
+        self.language_entry.configure(placeholder_text=get_string("placeholder_language_stt"))
+        self.format_label.configure(text=get_string("label_format"))
+        self.txt_radio.configure(text=get_string("radio_format_txt"))
+        self.json_radio.configure(text=get_string("radio_format_json"))
+        self.output_file_label.configure(text=get_string("label_output_file"))
+        self.filepath_entry.configure(placeholder_text=get_string("placeholder_output_file", filename=DEFAULT_TRANSCRIPTION_FILE))
+        self.browse_button.configure(text=get_string("button_browse"))
+        self.min_buffer_label.configure(text=get_string("label_min_buffer"))
+        self.silence_label.configure(text=get_string("label_silence_threshold"))
+        self.clear_log_checkbox.configure(text=get_string("checkbox_clear_log"))
+
+        # Rechter Button Frame
         self._check_record_button_state()
-        current_tab = self.tab_view.get()
-        logger.debug(f"Tab gewechselt zu: {current_tab}")
+        self.edit_filter_button.configure(text=get_string("button_edit_filter"))
+        self.edit_replacements_button.configure(text=get_string("button_edit_replacements"))
+
+        # Output Frame
+        self.clear_log_button.configure(text=get_string("button_clear_output"))
+
+        # Sprachauswahl Label
+        self.language_ui_label.configure(text=get_string("label_language_ui"))
+
+        # Log Level Auswahl
+        self.log_level_label.configure(text=get_string("label_log_level"))
+        level_display_options = list(self.log_level_display_names.values())
+        current_log_level_str = self.config.get("log_level", DEFAULT_LOG_LEVEL)
+        current_log_level_display = self.log_level_display_names.get(current_log_level_str, get_string("log_level_info"))
+        self.log_level_optionmenu.configure(values=level_display_options)
+        if current_log_level_display not in level_display_options:
+             current_log_level_display = self.log_level_display_names.get(DEFAULT_LOG_LEVEL, get_string("log_level_info"))
+        self.log_level_optionmenu.set(current_log_level_display)
+
+        self._update_initial_status()
+        logger.debug("UI-Texte aktualisiert.")
+
+    # --- (Rest der Methoden bleibt weitgehend gleich) ---
+    # ... (Methoden von _update_initial_status bis on_closing) ...
+
+    def _update_initial_status(self):
+         ws_enabled = self.config.get("websocket_enabled", False)
+         sb_enabled = self.config.get("streamerbot_ws_enabled", False)
+         base_status = get_string("status_ready")
+         suffix = ""
+         if not ws_enabled:
+              ws_part = get_string("status_ready_ws_disabled").replace(base_status, "").strip()
+              suffix += ws_part
+         if not sb_enabled:
+              sb_part = get_string("status_ready_sb_disabled").strip()
+              if suffix and sb_part: suffix += " "
+              suffix += sb_part
+
+         suffix = suffix.strip()
+         if suffix:
+              self._update_status(f"{base_status} ({suffix})", log=False, is_key=False)
+         else:
+              self._update_status("status_ready", log=False, is_key=True)
 
     def _on_mic_change(self, choice):
-        """Wird aufgerufen, wenn die Mikrofonauswahl wechselt."""
         if choice in self.available_mics:
-            # Extrahiere nur den Namen ohne ID für die Statusmeldung
             mic_display_name = choice.split(":", 1)[-1].strip()
-            self._update_status(f"Mikrofon '{mic_display_name}' ausgewählt.")
+            self._update_status("status_mic_selected", mic_name=mic_display_name, is_key=True)
         else:
-            self._update_status("Ungültige Mikrofon-Auswahl.", level="warning")
+            self._update_status("status_mic_invalid", level="warning", is_key=True)
 
     def _browse_output_file(self):
-        """Öffnet einen Dateidialog zur Auswahl der Ausgabedatei."""
         file_format = self.format_var.get()
         default_extension = f".{file_format}"
-        file_types = [(f"{file_format.upper()}-Datei", f"*{default_extension}"), ("Alle Dateien", "*.*")]
+        txt_desc = get_string("dialog_file_type_txt")
+        json_desc = get_string("dialog_file_type_json")
+        all_desc = get_string("dialog_file_type_all")
+        file_types = [(f"{txt_desc}", "*.txt"), (f"{json_desc}", "*.json"), (f"{all_desc}", "*.*")]
+
         current_path = self.filepath_entry.get()
         initial_dir = os.path.dirname(current_path) if current_path else "."
-        # FIX: Verwende DEFAULT_TRANSCRIPTION_FILE als Fallback für initialfile
         initial_file = os.path.basename(current_path) if current_path else DEFAULT_TRANSCRIPTION_FILE
         if not os.path.isdir(initial_dir): initial_dir = "."
 
         filepath = filedialog.asksaveasfilename(
-            title="Ausgabedatei wählen", initialdir=initial_dir, initialfile=initial_file,
+            title=get_string("dialog_select_output_file"),
+            initialdir=initial_dir, initialfile=initial_file,
             defaultextension=default_extension, filetypes=file_types
         )
         if filepath:
             self.filepath_entry.delete(0, "end")
             self.filepath_entry.insert(0, filepath)
-            self._update_status(f"Ausgabedatei: {os.path.basename(filepath)}")
+            self._update_status("status_output_file_selected", filename=os.path.basename(filepath), is_key=True)
             logger.info(f"Ausgabedatei ausgewählt: {filepath}")
 
     def _edit_filter_file(self):
-        """Öffnet die passende Filterdatei im Standard-Texteditor."""
-        current_mode = self._tab_name_to_mode(self.tab_view.get())
+        current_mode = self._tab_name_to_mode_safe(self.tab_view.get())
         target_file = FILTER_FILE_EL if current_mode == "elevenlabs" else FILTER_FILE
-        # Stelle sicher, dass die Datei existiert (erstelle sie, wenn nicht)
+        if not os.path.exists(target_file): load_filter_patterns(target_file)
         if not os.path.exists(target_file):
-            load_filter_patterns(target_file) # Diese Funktion erstellt die Datei bei Bedarf
-        if not os.path.exists(target_file):
-            self._update_status(f"Fehler: Filterdatei '{os.path.basename(target_file)}' konnte nicht erstellt/gefunden werden.", level="error")
+            self._update_status("status_error_filter_not_found", filename=os.path.basename(target_file), level="error", is_key=True)
             return
         self._open_file_in_editor(target_file)
 
     def _edit_replacements_file(self):
-        """Öffnet die Ersetzungs-JSON-Datei im Standard-Texteditor."""
         target_file = REPLACEMENTS_FILE
+        if not os.path.exists(target_file): load_replacements(target_file)
         if not os.path.exists(target_file):
-            load_replacements(target_file) # Erstellt Datei bei Bedarf
-        if not os.path.exists(target_file):
-            self._update_status("Fehler: Ersetzungsdatei konnte nicht erstellt/gefunden werden.", level="error")
+            self._update_status("status_error_replacements_not_found", level="error", is_key=True)
             return
         self._open_file_in_editor(target_file)
 
     def _open_file_in_editor(self, filepath):
-        """Versucht, eine Datei im Standardeditor des Systems zu öffnen."""
+        filename = os.path.basename(filepath)
         try:
             logger.info(f"Versuche Datei '{filepath}' im Standardeditor zu öffnen...")
-            self._update_status(f"Öffne '{os.path.basename(filepath)}' im Editor...")
+            self._update_status("status_opening_editor", filename=filename, is_key=True)
             if sys.platform == "win32": os.startfile(filepath)
             elif sys.platform == "darwin": subprocess.call(["open", filepath])
             else: subprocess.call(["xdg-open", filepath])
-            self.after(1000, lambda: self._update_status(f"'{os.path.basename(filepath)}' zum Bearbeiten geöffnet.", log=False))
+            self.after(1000, lambda: self._update_status("status_opened_editor", filename=filename, log=False, is_key=True))
         except FileNotFoundError:
-            self._update_status(f"Fehler: Datei '{os.path.basename(filepath)}' nicht gefunden.", level="error")
+            self._update_status("status_error_file_not_found", filename=filename, level="error", is_key=True)
             logger.error(f"Datei nicht gefunden beim Versuch zu öffnen: {filepath}")
         except OSError as e:
-            self._update_status(f"Fehler beim Öffnen der Datei: {e}", level="error")
+            self._update_status("status_error_opening_file", error=e, level="error", is_key=True)
             logger.error(f"OS-Fehler beim Öffnen von '{filepath}': {e}")
         except Exception as e:
-            self._update_status(f"Unbekannter Fehler beim Öffnen: {e}", level="error")
+            self._update_status("status_error_opening_file", error=e, level="error", is_key=True)
             logger.exception(f"Unbekannter Fehler beim Öffnen von '{filepath}'")
 
     def _clear_textbox(self):
-        """Leert den Inhalt der Haupt-Ausgabe-Textbox."""
         try:
             self.textbox.configure(state="normal")
             self.textbox.delete("1.0", "end")
             self.textbox.configure(state="disabled")
-            self._update_status("Anzeige geleert.")
+            self._update_status("status_output_cleared", is_key=True)
         except Exception as e:
             logger.exception("Fehler beim Leeren der Textbox")
-            self._update_status("Fehler beim Leeren der Anzeige.", level="error")
-
-    # --- Kontextmenü-Logik ---
+            self._update_status("status_error_clearing_output", level="error", is_key=True)
 
     def _show_context_menu(self, event):
-        """Zeigt ein Kontextmenü bei Rechtsklick in der Textbox an."""
         try:
             menu = tk.Menu(self, tearoff=0)
             has_selection = False
@@ -469,271 +661,214 @@ class WhisperGUI(ctk.CTk):
             except tk.TclError: pass
 
             if has_selection:
-                menu.add_command(label="Kopieren", command=self._copy_selection_to_clipboard)
+                menu.add_command(label=get_string("context_copy"), command=self._copy_selection_to_clipboard)
                 menu.add_separator()
-                menu.add_command(label="Zur Filterliste hinzufügen", command=self._add_selection_to_filter)
-                menu.add_command(label="Als 'Tuneingway'-Ersetzung hinzufügen", command=self._add_tuneingway_replacement_from_selection)
+                menu.add_command(label=get_string("context_add_filter"), command=self._add_selection_to_filter)
+                menu.add_command(label=get_string("context_add_replacement"), command=self._add_tuneingway_replacement_from_selection)
             else:
-                menu.add_command(label="Alles kopieren", command=self._copy_all_to_clipboard)
+                menu.add_command(label=get_string("context_copy_all"), command=self._copy_all_to_clipboard)
 
             menu.add_separator()
-            menu.add_command(label="Anzeige leeren", command=self._clear_textbox)
+            menu.add_command(label=get_string("context_clear_output"), command=self._clear_textbox)
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
 
     def _copy_selection_to_clipboard(self):
-        """Kopiert den ausgewählten Text aus der Textbox in die Zwischenablage."""
         try:
             selected_text = self.textbox.get("sel.first", "sel.last")
             if selected_text:
-                self.clipboard_clear()
-                self.clipboard_append(selected_text)
-                self._update_status("Auswahl kopiert.", log=False)
-        except tk.TclError: self._update_status("Keine Auswahl zum Kopieren.", level="info", log=False)
-        except Exception as e: logger.error(f"Fehler beim Kopieren der Auswahl: {e}"); self._update_status("Fehler beim Kopieren.", level="error")
+                self.clipboard_clear(); self.clipboard_append(selected_text)
+                self._update_status("status_selection_copied", log=False, is_key=True)
+        except tk.TclError: self._update_status("status_no_selection", level="info", log=False, is_key=True)
+        except Exception as e: logger.error(f"Fehler beim Kopieren der Auswahl: {e}"); self._update_status("status_error_copy", level="error", is_key=True)
 
     def _copy_all_to_clipboard(self):
-        """Kopiert den gesamten Text aus der Textbox in die Zwischenablage."""
         try:
             all_text = self.textbox.get("1.0", "end-1c")
             if all_text:
-                self.clipboard_clear()
-                self.clipboard_append(all_text)
-                self._update_status("Gesamter Text kopiert.", log=False)
-        except Exception as e: logger.error(f"Fehler beim Kopieren des gesamten Textes: {e}"); self._update_status("Fehler beim Kopieren.", level="error")
+                self.clipboard_clear(); self.clipboard_append(all_text)
+                self._update_status("status_all_copied", log=False, is_key=True)
+        except Exception as e: logger.error(f"Fehler beim Kopieren des gesamten Textes: {e}"); self._update_status("status_error_copy", level="error", is_key=True)
 
     def _add_selection_to_filter(self):
-        """Fügt den ausgewählten Text zur passenden Filterdatei hinzu."""
         try:
             selected_text = self.textbox.get("sel.first", "sel.last").strip()
-            if not selected_text: self._update_status("Keine Textauswahl zum Filtern vorhanden!", level="info"); return
+            if not selected_text: self._update_status("status_no_selection", level="info", is_key=True); return
 
-            current_mode = self._tab_name_to_mode(self.tab_view.get())
+            current_mode = self._tab_name_to_mode_safe(self.tab_view.get())
             target_file = FILTER_FILE_EL if current_mode == "elevenlabs" else FILTER_FILE
+            filename = os.path.basename(target_file)
 
-            # Füge den ausgewählten Text als neue Zeile hinzu
             with open(target_file, "a", encoding="utf-8") as f: f.write("\n" + selected_text)
 
-            self._update_status(f"'{selected_text[:30]}...' zur Filterliste ({os.path.basename(target_file)}) hinzugefügt.")
+            self._update_status("status_filter_added", text=selected_text[:30], filename=filename, is_key=True)
             logger.info(f"Filter hinzugefügt via Kontextmenü: '{selected_text}' zu {target_file}")
 
-            # Lade die entsprechenden Filter-Patterns sofort neu
             if target_file == FILTER_FILE: self.loaded_filter_patterns = load_filter_patterns(FILTER_FILE)
             else: self.loaded_filter_patterns_el = load_filter_patterns(FILTER_FILE_EL)
 
-        except tk.TclError: self._update_status("Keine Auswahl getroffen.", level="info")
-        except IOError as e: logger.error(f"Fehler beim Schreiben in die Filterdatei '{target_file}': {e}"); self._update_status(f"Fehler beim Speichern des Filters: {e}", level="error")
-        except Exception as e: logger.exception("Fehler beim Hinzufügen zur Filterliste via Kontextmenü"); self._update_status(f"Fehler Hinzufügen Filter: {e}", level="error")
+        except tk.TclError: self._update_status("status_no_selection", level="info", is_key=True)
+        except IOError as e: logger.error(f"Fehler beim Schreiben in die Filterdatei '{target_file}': {e}"); self._update_status("status_error_saving_filter", error=e, level="error", is_key=True)
+        except Exception as e: logger.exception("Fehler beim Hinzufügen zur Filterliste via Kontextmenü"); self._update_status("status_error_saving_filter", error=e, level="error", is_key=True)
 
     def _add_tuneingway_replacement_from_selection(self):
-        """Fügt eine Ersetzungsregel für den ausgewählten Text -> 'Tuneingway' hinzu."""
         try:
             selected_text = self.textbox.get("sel.first", "sel.last").strip()
-        except tk.TclError: self._update_status("Keine Auswahl getroffen.", level="info"); return
-        if not selected_text: self._update_status("Leere Auswahl ignoriert.", level="info"); return
+        except tk.TclError: self._update_status("status_no_selection", level="info", is_key=True); return
+        if not selected_text: self._update_status("status_empty_selection", level="info", is_key=True); return
 
-        # Verwende das Instanz-Dictionary
         pattern = f"(?i)\\b{re.escape(selected_text)}\\b"
         correct_name = "Tuneingway"
         if pattern in self.loaded_replacements and self.loaded_replacements[pattern] == correct_name:
-            self._update_status(f"Info: Ersetzung für '{selected_text[:20]}...' existiert bereits.", level="info")
+            self._update_status("status_replacement_exists", text=selected_text[:20], level="info", is_key=True)
             return
 
         self.loaded_replacements[pattern] = correct_name
         logger.info(f"Neue Ersetzung via Kontextmenü hinzugefügt: '{pattern}' -> '{correct_name}'")
 
-        # Speichere das aktualisierte Dictionary (Instanzvariable)
         if save_replacements(self.loaded_replacements, REPLACEMENTS_FILE):
-            self._update_status(f"Ersetzung für '{selected_text[:20]}...' gespeichert.", level="success")
+            self._update_status("status_replacement_added", text=selected_text[:20], level="success", is_key=True)
         else:
-            self._update_status(f"Fehler beim Speichern der Ersetzung für '{selected_text[:20]}...'.", level="error")
-
-
-    # --- Kernlogik ---
+            self._update_status("status_error_saving_replacements", text=selected_text[:20], level="error", is_key=True)
 
     def populate_mic_dropdown(self):
-        """Holt verfügbare Mikrofone und aktualisiert die Dropdown-Liste."""
-        self._update_status("Suche Mikrofone...", level="info")
-        self.mic_combobox.configure(values=["Lade..."], state="disabled")
+        self._update_status("status_mic_search", level="info", is_key=True)
+        self.mic_combobox.configure(values=[get_string("combobox_mic_loading")], state="disabled")
         self.update_idletasks()
-        # Führe Geräteauflistung in separatem Thread aus, um GUI nicht zu blockieren
-        # Übergib die gui_q an die Funktion
         threading.Thread(target=self._populate_mic_thread_target, args=(self.gui_q,), daemon=True).start()
 
     def _populate_mic_thread_target(self, gui_q):
-        """Zielfunktion für den Mikrofon-Auflistungs-Thread."""
         try:
-            # Rufe list_audio_devices_for_gui aus utils auf und übergebe die gui_q
             self.available_mics = list_audio_devices_for_gui(gui_q)
             mic_names = list(self.available_mics.keys())
             saved_mic_name = self.config.get("mic_name")
 
             def update_gui():
-                """Interne Funktion zum Aktualisieren der GUI im Hauptthread."""
-                self.mic_combobox.configure(values=mic_names if mic_names else ["Keine Mikrofone!"], state="readonly" if mic_names else "disabled")
+                no_mics_text = get_string("combobox_mic_nodata")
+                error_text = get_string("combobox_mic_error")
+
+                self.mic_combobox.configure(values=mic_names if mic_names else [no_mics_text], state="readonly" if mic_names else "disabled")
                 if mic_names:
                     selected_mic = None
                     if saved_mic_name and saved_mic_name in mic_names: selected_mic = saved_mic_name
                     else:
                         default_mic_name = next((name for name in mic_names if "(Standard)" in name), None)
                         if default_mic_name: selected_mic = default_mic_name
-                        else: selected_mic = mic_names[0] # Fallback
+                        else: selected_mic = mic_names[0]
 
                     if selected_mic:
                         self.mic_combobox.set(selected_mic)
-                        self._update_status("Mikrofone geladen. Mikrofon ausgewählt.")
+                        self._update_status("status_mics_loaded_selected", is_key=True)
                     else:
-                        self.mic_combobox.set("Fehler Auswahl")
-                        self._update_status("Mikrofone geladen, aber Auswahlfehler.", level="warning")
+                        self.mic_combobox.set(error_text)
+                        self._update_status("status_mics_loaded_error", level="warning", is_key=True)
                 else:
-                    self.mic_combobox.set("Keine Mikrofone!")
-                    # Status wurde bereits von list_audio_devices_for_gui gesetzt
+                    self.mic_combobox.set(no_mics_text)
 
-            self.after(0, update_gui) # Plane GUI-Update im Hauptthread
+            self.after(0, update_gui)
         except Exception as e:
              logger.exception("Fehler im Mikrofon-Lade-Thread")
-             self.after(0, lambda: self._update_status("Fehler beim Laden der Mikrofone!", level="error"))
-             self.after(0, lambda: self.mic_combobox.configure(values=["Fehler!"], state="disabled"))
+             self.after(0, lambda: self._update_status("status_mics_error", level="error", is_key=True))
+             self.after(0, lambda: self.mic_combobox.configure(values=[get_string("combobox_mic_error")], state="disabled"))
 
     def _check_record_button_state(self):
-        """Aktiviert/Deaktiviert den Aufnahme-Button basierend auf Tab und Aufnahmestatus."""
         try:
-            # FIX: Logik für Indikatorlicht von Button-Status getrennt
-            # Indikatorlicht SOLLTE IMMER den Aufnahmestatus widerspiegeln
+            current_tab_name = self.tab_view.get()
+            current_mode = self._tab_name_to_mode_safe(current_tab_name)
+
             if self.is_recording:
                 self.indicator_light.configure(fg_color="red")
-                # Der Button-Text und -Status hängt vom Tab ab
-                current_tab = self.tab_view.get()
-                if current_tab in ["WebSocket", "Integration (SB)"]:
-                    # Button bleibt deaktiviert, aber Text zeigt Stopp an (falls man zurückwechselt)
-                    self.start_stop_button.configure(state="disabled", text="Aufnahme stoppen")
-                else:
-                    # Button ist aktiv und zeigt Stopp an
-                    self.start_stop_button.configure(state="normal", text="Aufnahme stoppen")
+                stop_text = get_string("button_stop_recording")
+                if current_mode in ["websocket", "integration"]: self.start_stop_button.configure(state="disabled", text=stop_text)
+                else: self.start_stop_button.configure(state="normal", text=stop_text)
             else:
-                # Nicht aufnehmen: Indikator grau
                 self.indicator_light.configure(fg_color="grey")
-                # Button-Status hängt vom Tab ab
-                current_tab = self.tab_view.get()
-                if current_tab in ["WebSocket", "Integration (SB)"]:
-                    self.start_stop_button.configure(state="disabled", text="Aufnahme starten")
-                else:
-                    self.start_stop_button.configure(state="normal", text="Aufnahme starten")
-
-            # Erneut planen
+                start_text = get_string("button_start_recording")
+                if current_mode in ["websocket", "integration"]: self.start_stop_button.configure(state="disabled", text=start_text)
+                else: self.start_stop_button.configure(state="normal", text=start_text)
             self.after(500, self._check_record_button_state)
         except Exception as e:
              if isinstance(e, tk.TclError) and "invalid command name" in str(e): logger.debug("TclError in _check_record_button_state (Shutdown?).")
-             else: logger.warning(f"Fehler in _check_record_button_state: {e}")
-
+             else: logger.warning(f"Unerwarteter Fehler in _check_record_button_state: {e}")
 
     def toggle_recording(self):
-        """Startet oder stoppt den Audioaufnahme- und Verarbeitungs-Worker-Thread."""
-        # DEBUG: Logge den Start der Funktion
         logger.debug(f"toggle_recording aufgerufen. Aktueller Status: {'Aufnahme läuft' if self.is_recording else 'Nicht aufnehmen'}")
 
-        # FIX: Entferne die Prüfung, die den Start auf WS/Integration Tabs verhindert hat
-        # current_tab = self.tab_view.get()
-        # if not self.is_recording and current_tab in ["WebSocket", "Integration (SB)"]:
-        #     self._update_status("Aufnahme nicht verfügbar in diesem Modus!", level="warning")
-        #     logger.warning(f"toggle_recording: Start auf Tab '{current_tab}' verhindert.")
-        #     return
-
         if self.is_recording:
-            # --- Aufnahme stoppen ---
             logger.info("Stoppe Aufnahme...")
-            self._update_status("Stoppe Aufnahme...", level="info")
-            logger.debug("toggle_recording: Setze stop_recording_flag...")
-            self.stop_recording_flag.set() # Signalisiere Worker-Thread
-            # Aktualisiere Button und Indikator sofort (wird ggf. durch _check_record_button_state korrigiert)
-            self.start_stop_button.configure(text="Stoppe...", state="disabled")
-            # self.indicator_light.configure(fg_color="grey") # Wird von _check_record_button_state übernommen
+            self._update_status("status_stopping_recording", level="info", is_key=True)
+            self.flags['stop_recording'].set()
+            self.start_stop_button.configure(text=get_string("button_stopping_recording"), state="disabled")
             logger.debug("toggle_recording: Stopp angefordert.")
         else:
-            # --- Aufnahme starten ---
             logger.info("Starte Aufnahme...")
             logger.debug("toggle_recording: Validiere Startbedingungen...")
             if not self._validate_start_conditions():
                 logger.warning("toggle_recording: Startbedingungen nicht erfüllt.")
-                return # Eingaben prüfen
+                return
 
             logger.debug("toggle_recording: Sammle Laufzeit-Konfiguration...")
-            current_config = self._gather_runtime_config_dict() # Aktuelle Einstellungen sammeln
+            current_config = self._gather_runtime_config_dict()
             if not current_config:
                 logger.error("toggle_recording: Sammeln der Konfiguration fehlgeschlagen.")
-                return # Sammeln fehlgeschlagen
+                return
 
-            # Bereite Argumente für den Worker vor
             try:
                 logger.debug("toggle_recording: Bereite Worker-Argumente vor...")
                 worker_args = self._prepare_worker_args(current_config)
-                logger.debug(f"Vorbereitung für Worker: output_file='{worker_args['output_file']}'")
             except ValueError as e:
                  logger.error(f"toggle_recording: Fehler bei Worker-Argumenten: {e}")
-                 self._update_status(f"Ungültige Eingabe: {e}", level="error")
+                 self._update_status("status_error_invalid_input", error=e, level="error", is_key=True)
                  return
 
-            # Stopp-Flag löschen und GUI aktualisieren
             logger.debug("toggle_recording: Lösche Stopp-Flag und aktualisiere GUI...")
-            self.stop_recording_flag.clear()
+            self.flags['stop_recording'].clear()
             self.is_recording = True
-            # Aktualisiere Button und Indikator sofort
-            self.start_stop_button.configure(text="Aufnahme stoppen", state="normal") # Wird ggf. von _check korrigiert
-            self.indicator_light.configure(fg_color="red")
-            self._update_status("Starte Aufnahme...", level="info")
+            self._check_record_button_state()
+            self._update_status("status_starting_recording", level="info", is_key=True)
 
-            # Starte Worker-Thread
             logger.debug(f"toggle_recording: Starte recording_worker Thread (Modus: {worker_args['processing_mode']})...")
             self.recording_thread = threading.Thread(
-                target=recording_worker, # Importierte Funktion
-                kwargs=worker_args,      # Übergebe Argumente als dict
-                daemon=True,
-                name="RecordingWorkerThread"
+                target=recording_worker, kwargs=worker_args, daemon=True, name="RecordingWorkerThread"
             )
             self.recording_thread.start()
             logger.info("recording_worker Thread gestartet.")
-        # Stelle sicher, dass der Button/Indikator-Status sofort aktualisiert wird
         self._check_record_button_state()
 
-
     def _validate_start_conditions(self):
-        """Prüft, ob alle notwendigen Bedingungen zum Starten der Aufnahme erfüllt sind."""
-        # Mikrofonprüfung
         mic_name = self.mic_combobox.get()
-        if not mic_name or mic_name == "Lade..." or mic_name == "Keine Mikrofone!" or mic_name not in self.available_mics:
-            self._update_status("Fehler: Bitte gültiges Mikrofon auswählen!", level="error"); return False
-        # Ausgabedateipfadprüfung (Schreibbarkeit)
+        if not mic_name or mic_name == get_string("combobox_mic_loading") or mic_name == get_string("combobox_mic_nodata") or mic_name not in self.available_mics:
+            self._update_status("status_error_mic_select_fail", level="error", is_key=True); return False
         output_file = self.filepath_entry.get().strip()
         if output_file:
             output_dir = os.path.dirname(output_file) or "."
             if not os.path.exists(output_dir):
                 try: os.makedirs(output_dir, exist_ok=True); logger.info(f"Ausgabeverzeichnis erstellt (Validate): {output_dir}")
-                except OSError as e: self._update_status(f"Fehler Erstellen Ausgabeverz. (Validate): {e}", level="error"); return False
+                except OSError as e: self._update_status("status_error_output_dir_create", error=e, level="error", is_key=True); return False
             if not os.access(output_dir, os.W_OK):
-                 self._update_status(f"Fehler: Kein Schreibzugriff für Ausgabepfad.", level="error"); return False
-        # API-Key-Prüfung basierend auf Modus
-        processing_mode = self._tab_name_to_mode(self.tab_view.get())
+                 self._update_status("status_error_output_dir_write", level="error", is_key=True); return False
+        processing_mode = self._tab_name_to_mode_safe(self.tab_view.get())
         if processing_mode == "openai" and not self.openai_api_key_entry.get():
-            self._update_status("Fehler: OpenAI API Key fehlt!", level="error"); return False
+            self._update_status("status_error_api_key_openai", level="error", is_key=True); return False
         if processing_mode == "elevenlabs":
-             if not self.elevenlabs_api_key_entry.get(): self._update_status("Fehler: ElevenLabs API Key fehlt!", level="error"); return False
-             if not self.elevenlabs_model_id_entry.get(): self._update_status("Fehler: ElevenLabs Modell ID fehlt!", level="error"); return False
-        # Numerische Eingaben prüfen
+             if not self.elevenlabs_api_key_entry.get(): self._update_status("status_error_api_key_elevenlabs", level="error", is_key=True); return False
+             if not self.elevenlabs_model_id_entry.get(): self._update_status("status_error_model_id_elevenlabs", level="error", is_key=True); return False
         try: float(self.min_buffer_entry.get()); float(self.silence_threshold_entry.get())
-        except ValueError: self._update_status("Fehler: Ungültige Zahl bei Puffer/Stille.", level="error"); return False
+        except ValueError: self._update_status("status_error_numeric_buffer", level="error", is_key=True); return False
         return True
 
     def _gather_runtime_config_dict(self):
-         """Sammelt die aktuellen Einstellungen aus der GUI in einem Dictionary."""
          try:
              config_dict = {
-                 "mode": self._tab_name_to_mode(self.tab_view.get()),
+                 "mode": self._tab_name_to_mode_safe(self.tab_view.get()),
                  "openai_api_key": self.openai_api_key_entry.get(),
                  "elevenlabs_api_key": self.elevenlabs_api_key_entry.get(),
                  "mic_name": self.mic_combobox.get(),
                  "local_model": self.model_combobox.get(),
                  "language": self.language_entry.get().strip(),
+                 "language_ui": self.current_lang_code,
+                 "log_level": self.config.get("log_level", DEFAULT_LOG_LEVEL), # Füge Log-Level hinzu
                  "output_format": self.format_var.get(),
                  "output_filepath": self.filepath_entry.get().strip(),
                  "clear_log_on_start": bool(self.clear_log_checkbox.get()),
@@ -747,62 +882,52 @@ class WhisperGUI(ctk.CTk):
                  "streamerbot_ws_url": self.streamerbot_ws_url_entry.get(),
                  "stt_prefix": self.stt_prefix_entry.get()
              }
-             # Erneute Validierung numerischer Werte
              float(config_dict["min_buffer_duration"])
              float(config_dict["silence_threshold"])
              int(config_dict["websocket_port"])
              return config_dict
          except (tk.TclError, AttributeError, ValueError) as e:
               logger.error(f"Fehler beim Sammeln der Laufzeit-Konfiguration: {e}")
-              self._update_status(f"Fehler beim Lesen der Einstellungen: {e}", level="error")
+              self._update_status("status_error_reading_settings", error=e, level="error", is_key=True)
               return None
 
-
     def _prepare_worker_args(self, current_config):
-        """Bereitet das Argument-Dictionary für den recording_worker Thread vor."""
-        # Hole die korrekten Filterpatterns basierend auf dem Modus
         processing_mode = current_config['mode']
         filter_patterns_to_use = self.loaded_filter_patterns_el if processing_mode == "elevenlabs" else self.loaded_filter_patterns
-
         args = {
             "processing_mode": processing_mode,
             "openai_api_key": current_config['openai_api_key'],
             "elevenlabs_api_key": current_config['elevenlabs_api_key'],
-            "device_id": self.available_mics.get(current_config['mic_name']), # Hole ID aus Dict
-            "samplerate": DEFAULT_SAMPLERATE, # Verwende importierte Konstante
-            "channels": DEFAULT_CHANNELS,     # Verwende importierte Konstante
+            "device_id": self.available_mics.get(current_config['mic_name']),
+            "samplerate": DEFAULT_SAMPLERATE,
+            "channels": DEFAULT_CHANNELS,
             "model_name": current_config['local_model'],
             "language": current_config['language'] or None,
             "output_file": current_config['output_filepath'],
             "file_format": current_config['output_format'],
-            "energy_threshold": DEFAULT_ENERGY_THRESHOLD, # Verwende importierte Konstante
+            "energy_threshold": DEFAULT_ENERGY_THRESHOLD,
             "min_buffer_sec": current_config['min_buffer_duration'],
             "silence_sec": current_config['silence_threshold'],
             "elevenlabs_model_id": current_config['elevenlabs_model_id'],
             "filter_parentheses": current_config['filter_parentheses'],
             "send_to_streamerbot_flag": current_config['streamerbot_ws_enabled'],
             "stt_prefix": current_config['stt_prefix'],
-            # Übergebe Queues und Flags
-            "audio_q": self.audio_q,
-            "gui_q": self.gui_q,
-            "streamerbot_queue": self.streamerbot_queue,
-            "stop_recording_flag": self.stop_recording_flag,
-            # Übergebe geladene Filter/Ersetzungen
+            "audio_q": self.queues['audio_q'],
+            "gui_q": self.queues['gui_q'],
+            "streamerbot_queue": self.queues['streamerbot_q'],
+            "stop_recording_flag": self.flags['stop_recording'],
             "loaded_replacements": self.loaded_replacements,
             "filter_patterns": filter_patterns_to_use,
         }
         if args["device_id"] is None: raise ValueError("Mikrofon-ID nicht gefunden.")
-        # DEBUG Log hinzugefügt
         logger.debug(f"Vorbereitung für Worker: output_file='{args['output_file']}'")
         return args
 
     def _process_gui_queue(self):
-        """Verarbeitet Nachrichten aus Hintergrund-Threads über die gui_q."""
         try:
             while True:
-                msg_type, msg_data = self.gui_q.get_nowait()
-                # DEBUG: Logge jede empfangene Nachricht
-                # logger.debug(f"GUI Queue: Empfangen: Typ={msg_type}, Daten={str(msg_data)[:100]}")
+                msg_type, msg_data = self.queues['gui_q'].get_nowait()
+                is_key_prefix = isinstance(msg_data, str) and (msg_data.startswith("status_") or msg_data.startswith("combobox_"))
 
                 if msg_type == "transcription":
                     self.textbox.configure(state="normal")
@@ -810,11 +935,15 @@ class WhisperGUI(ctk.CTk):
                     self.textbox.configure(state="disabled")
                     self.textbox.see("end")
                 elif msg_type == "status":
-                    self._update_status(msg_data, level="info", log=False)
+                    self._update_status(msg_data, level="info", log=False, is_key=is_key_prefix)
                 elif msg_type == "error":
-                    self._update_status(msg_data, level="error", log=True)
+                    is_error_key = isinstance(msg_data, str) and msg_data.startswith("status_error_")
+                    kwargs = {} if is_error_key else {'error': msg_data}
+                    key_or_msg = msg_data if is_error_key else "status_error_generic"
+                    self._update_status(key_or_msg, level="error", log=True, is_key=True, **kwargs)
                 elif msg_type == "warning":
-                    self._update_status(msg_data, level="warning", log=True)
+                     is_warn_key = isinstance(msg_data, str) and msg_data.startswith("status_warn_")
+                     self._update_status(msg_data, level="warning", log=True, is_key=is_warn_key)
                 elif msg_type == "toggle_recording_external":
                     logger.info("Externer Umschaltbefehl für Aufnahme empfangen (via GUI Queue).")
                     logger.debug("Rufe self.toggle_recording() aus _process_gui_queue auf...")
@@ -823,143 +952,120 @@ class WhisperGUI(ctk.CTk):
                 elif msg_type == "finished":
                     logger.info("Aufnahme-Worker hat 'finished' signalisiert.")
                     self.is_recording = False
-                    self.recording_thread = None # Referenz löschen
-                    # Button/Indikator werden durch _check_record_button_state aktualisiert
-                    self._check_record_button_state() # Stelle Button-Status sicher
+                    self.recording_thread = None
+                    self._check_record_button_state()
                 else: logger.warning(f"Unbekannter Nachrichtentyp in GUI Queue: {msg_type}")
-                self.gui_q.task_done()
+                self.queues['gui_q'].task_done()
         except queue.Empty: pass
         except Exception as e: logger.exception("Fehler in der GUI Queue Verarbeitungsschleife")
-        self.after(100, self._process_gui_queue) # Erneut planen
+        self.after(100, self._process_gui_queue)
 
-    def _update_status(self, message, level="info", log=True):
-        """Aktualisiert die Statusleiste und loggt optional die Nachricht."""
+    def _update_status(self, message_or_key, level="info", log=True, is_key=True, **kwargs):
+        if is_key:
+            message = get_string(message_or_key, **kwargs)
+        else:
+            try: message = str(message_or_key).format(**kwargs) if kwargs else str(message_or_key)
+            except: message = str(message_or_key)
+
         status_text = message if len(message) < 150 else message[:147] + "..."
         try:
             self.status_label.configure(text=status_text)
             color_map = {"error": ("black", "red"), "warning": ("black", "#FF8C00")}
-            # Hole Standardfarbe sicher, falls ThemeManager nicht verfügbar
-            try:
-                 default_fg = ctk.ThemeManager.theme["CTkLabel"]["text_color"]
-            except:
-                 default_fg = ("black", "white") # Fallback
+            try: default_fg = ctk.ThemeManager.theme["CTkLabel"]["text_color"]
+            except: default_fg = ("black", "white")
             self.status_label.configure(text_color=color_map.get(level, default_fg))
         except tk.TclError: logger.warning("Status-Label konnte nicht aktualisiert werden (Fenster geschlossen?)."); return
         if log:
-            log_func = getattr(logger, level, logger.info) # Finde passende Log-Funktion
+            log_func = getattr(logger, level, logger.info)
             log_func(f"GUI Status: {message}")
 
     # --- Management von Hintergrund-Tasks ---
-
     def _start_websocket_server(self):
-        """Startet den WebSocket-Server-Thread, falls aktiviert und nicht bereits aktiv."""
         if not self.config.get("websocket_enabled", False): return
         if self.websocket_server_thread and self.websocket_server_thread.is_alive(): return
-
         try: port = int(self.websocket_port_entry.get())
         except (ValueError, tk.TclError): port = WEBSOCKET_PORT
-        self._update_status(f"Starte WebSocket Server auf Port {port}...", level="info")
-        # Starte Thread und speichere Referenz und Stop-Event
-        self.websocket_server_thread, self.websocket_stop_event = start_websocket_server_thread(port, self.gui_q)
+        self._update_status("status_ws_server_starting", port=port, level="info", is_key=True)
+        self.websocket_server_thread, self.websocket_stop_event = start_websocket_server_thread(port, self.queues['gui_q'])
 
     def _stop_websocket_server(self):
-        """Signalisiert dem WebSocket-Server-Thread das Stoppen."""
         if self.websocket_server_thread and self.websocket_server_thread.is_alive() and self.websocket_stop_event:
             logger.info("Sende Stop-Signal an WebSocket Server...")
             try:
-                # Das Event gehört zur Loop des WS-Threads, daher call_soon_threadsafe verwenden
-                # Prüfe, ob die Loop-Referenz, die wir angehängt haben, existiert
                 loop = getattr(self.websocket_stop_event, '_custom_loop_ref', None)
                 if loop and loop.is_running():
                      loop.call_soon_threadsafe(self.websocket_stop_event.set)
                      logger.info("Stop-Event für WebSocket Server via call_soon_threadsafe gesetzt.")
                 else:
                      logger.warning("Konnte Loop für WebSocket Stop-Event nicht finden oder sie läuft nicht mehr. Versuche direktes Setzen.")
-                     self.websocket_stop_event.set() # Fallback (könnte unsicher sein)
+                     self.websocket_stop_event.set()
             except Exception as e: logger.error(f"Fehler beim Setzen des WebSocket Stop-Events: {e}")
-        self.websocket_server_thread = None # Referenz löschen
+        self.websocket_server_thread = None
         self.websocket_stop_event = None
 
     def _start_streamerbot_client(self):
-        """Startet den Streamer.bot-Client-Thread, falls aktiviert und nicht bereits aktiv."""
         if not self.config.get("streamerbot_ws_enabled", False): return
         if self.streamerbot_client_thread and self.streamerbot_client_thread.is_alive(): return
-
         ws_url = self.streamerbot_ws_url_entry.get()
         if not ws_url.startswith(("ws://", "wss://")):
-            self._update_status(f"Ungültige Streamer.bot URL: {ws_url}", level="error"); return
-
-        self._update_status(f"Starte Streamer.bot Client für {ws_url}...", level="info")
-        self.streamerbot_client_stop_event.clear() # Stelle sicher, dass Flag gelöscht ist
-        # Starte Thread und speichere Referenz
+            self._update_status("status_error_sb_url_invalid", url=ws_url, level="error", is_key=True); return
+        self._update_status("status_sb_client_starting", url=ws_url, level="info", is_key=True)
+        self.flags['stop_streamerbot'].clear()
         self.streamerbot_client_thread = start_streamerbot_client_thread(
-            ws_url, self.streamerbot_queue, self.streamerbot_client_stop_event, self.gui_q
+            ws_url, self.queues['streamerbot_q'], self.flags['stop_streamerbot'], self.queues['gui_q']
         )
 
     def _stop_streamerbot_client(self):
-        """Signalisiert dem Streamer.bot-Client-Thread das Stoppen."""
         if self.streamerbot_client_thread and self.streamerbot_client_thread.is_alive():
             logger.info("Sende Stop-Signal an Streamer.bot Client...")
-            self.streamerbot_client_stop_event.set()
-        self.streamerbot_client_thread = None # Referenz löschen
+            self.flags['stop_streamerbot'].set()
+        self.streamerbot_client_thread = None
 
     # --- Hilfsmethoden ---
-
     def _mode_to_tab_name(self, mode_str):
-        """Konvertiert interne Modus-ID zu GUI-Tab-Namen."""
-        mapping = { "local": "Lokal", "openai": "OpenAI API", "elevenlabs": "ElevenLabs API",
-                    "websocket": "WebSocket", "integration": "Integration (SB)" }
-        return mapping.get(mode_str, "Lokal")
+        key = f"tab_{mode_str}"
+        return get_string(key)
 
-    def _tab_name_to_mode(self, tab_name):
-        """Konvertiert GUI-Tab-Namen zu interner Modus-ID."""
-        mapping = { "Lokal": "local", "OpenAI API": "openai", "ElevenLabs API": "elevenlabs",
-                    "WebSocket": "websocket", "Integration (SB)": "integration" }
-        return mapping.get(tab_name, "local")
+    def _tab_name_to_mode_safe(self, tab_name):
+        """
+        Konvertiert den *initialen* GUI-Tab-Namen (aus der Default-Sprache)
+        zu interner Modus-ID unter Verwendung der fixen Map.
+        """
+        mode = self._initial_tab_name_to_mode_map.get(tab_name)
+        if mode:
+            return mode
+        else:
+            logger.warning(f"Konnte internen Modus für Tab-Namen '{tab_name}' nicht in fixer Map finden. Fallback auf 'local'.")
+            return "local" # Fallback
 
     # --- Schließen-Handler ---
-
     def on_closing(self):
-        """Behandelt das Schließen des Fensters."""
         logger.info("Schließvorgang eingeleitet...")
-        # 1. Aufnahme stoppen, falls aktiv
         if self.is_recording:
-            self._update_status("Beende Aufnahme vor dem Schließen...", level="info")
+            self._update_status("status_closing", level="info", is_key=True)
             logger.debug("on_closing: Setze stop_recording_flag...")
-            self.stop_recording_flag.set()
+            self.flags['stop_recording'].set()
             if self.recording_thread and self.recording_thread.is_alive():
                 logger.info("Warte auf Beendigung des Aufnahme-Threads (max 2s)...")
-                self.recording_thread.join(timeout=2) # Kürzeres Timeout beim Schließen
-                if self.recording_thread.is_alive():
-                     logger.warning("Aufnahme-Thread hat sich nach 2s nicht beendet.")
-                else:
-                     logger.info("Aufnahme-Thread erfolgreich beendet.")
-            else:
-                 logger.debug("on_closing: Kein aktiver Aufnahme-Thread zum Beenden gefunden.")
+                self.recording_thread.join(timeout=2)
+                if self.recording_thread.is_alive(): logger.warning("Aufnahme-Thread hat sich nach 2s nicht beendet.")
+                else: logger.info("Aufnahme-Thread erfolgreich beendet.")
+            else: logger.debug("on_closing: Kein aktiver Aufnahme-Thread zum Beenden gefunden.")
             self.is_recording = False
 
-        # 2. Hintergrund-Threads stoppen
         logger.debug("on_closing: Stoppe Hintergrund-Threads...")
         self._stop_websocket_server()
         self._stop_streamerbot_client()
 
-        # 3. Finale Konfiguration speichern (aus GUI-Werten)
         logger.debug("on_closing: Speichere finale Konfiguration...")
         final_config = self._gather_runtime_config_dict()
         if final_config:
-             # save_config wurde bereits importiert
-             if save_config(CONFIG_FILE, final_config, self.encryption_key):
-                  logger.info("Finale Konfiguration gespeichert.")
-             else:
-                  logger.error("Fehler beim Speichern der finalen Konfiguration.")
-        else:
-             logger.error("Konnte finale Konfiguration nicht sammeln/speichern.")
+             if save_config(CONFIG_FILE, final_config, self.encryption_key): logger.info("Finale Konfiguration gespeichert.")
+             else: logger.error("Fehler beim Speichern der finalen Konfiguration.")
+        else: logger.error("Konnte finale Konfiguration nicht sammeln/speichern.")
 
-        # 4. Kurz warten, damit Threads aufräumen können
         logger.debug("on_closing: Warte kurz...")
         time.sleep(0.2)
-
-        # 5. Tkinter-Fenster zerstören
         logger.info("Zerstöre Tkinter-Fenster.")
         self.destroy()
         logger.info("Anwendung beendet.")
