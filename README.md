@@ -243,6 +243,11 @@ If you want to contribute to the development:
 
 ---
 
+## Language Disclaimer
+
+Please note that while the user interface and most configuration options are available in English, some parts of the code—including logging messages and internal comments—are documented in German. This is due to the original development context. You are welcome to contribute improvements or request translations if needed.
+
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
