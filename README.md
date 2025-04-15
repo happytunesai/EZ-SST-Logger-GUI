@@ -86,17 +86,16 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
 ## Installation Guide
 
 1.  **Clone or Download the Repository:**
-    *(Replace placeholder URL with your actual repository if applicable)*
     ```bash
-    git clone https://github.com/YourUsername/ez_stt_logger_gui.git
-    cd ez_stt_logger_gui
+    git clone [https://github.com/happytunesai/EZ-SST-Logger-GUI.git](https://github.com/happytunesai/EZ-SST-Logger-GUI.git)
+    cd EZ-SST-Logger-GUI
     ```
     Or simply download and extract the project files (`main.py`, `requirements.txt`, the `lib` folder, etc.).
 
 2.  **Create Directory Structure (if not present):**
     Ensure you have the following structure (the application will try to create `config`, `filter`, `logs`, `language` on first run if they don't exist):
     ```
-    ez_stt_logger_gui/
+    EZ-SST-Logger-GUI/
     ├── config/
     ├── filter/
     ├── language/
@@ -239,9 +238,9 @@ This software is provided under the [MIT License](LICENSE) (You would need to cr
 ## Contact
 
 For questions, issues, or contribution suggestions, please contact us at:
-**Email:** support@example.com *(Placeholder)*
-**GitHub:** [github.com/YourUsername/ez_stt_logger_gui](https://github.com/YourUsername/ez_stt_logger_gui) *(Placeholder)*
+**Email:** info@happytunes.de
+**GitHub:** [github.com/happytunesai/EZ-SST-Logger-GUI](https://github.com/happytunesai/EZ-SST-Logger-GUI)
 
 ---
 
-*Created with ❤️*
+*Created with ❤️ and AI*
