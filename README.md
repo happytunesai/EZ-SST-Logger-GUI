@@ -245,7 +245,7 @@ If you want to contribute to the development:
 
 ## License
 
-This software is provided under the [MIT License](LICENSE)
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
