@@ -1,7 +1,7 @@
 # EZ STT Logger GUI
 
-**Version:** 0.9.9 (Log Level)
-**Status:** Beta Release
+**Version:** 1.0.0
+**Status:** Release
 
 ---
 
@@ -88,7 +88,7 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
 1.  **Clone or Download the Repository:**
     *(Replace placeholder URL with your actual repository if applicable)*
     ```bash
-    git clone [https://github.com/YourUsername/ez_stt_logger_gui.git](https://github.com/YourUsername/ez_stt_logger_gui.git)
+    git clone https://github.com/YourUsername/ez_stt_logger_gui.git
     cd ez_stt_logger_gui
     ```
     Or simply download and extract the project files (`main.py`, `requirements.txt`, the `lib` folder, etc.).
