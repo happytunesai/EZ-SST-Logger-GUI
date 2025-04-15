@@ -9,8 +9,11 @@
 
 The **EZ STT Logger GUI** is a versatile graphical application for real-time speech-to-text (STT) recognition and audio logging. The app supports multiple modes – from local Whisper models and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options.
 
+<<<<<<< HEAD
 It was created to provide enhanced STT features for Streamer.bot, often complementing **PNGTuber-GPT** addon setups (like the extended version by [happytunesai](https://github.com/happytunesai/PNGTuber-GPT), based on the original by [RapidRabbit-11485](https://github.com/RapidRabbit-11485/PNGTuber-GPT)).
+=======
 It is often used as an STT extension for Streamer.bot setups, particularly in conjunction with extended versions of the **PNGTuber-GPT** addon (like the one by [happytunesai](https://github.com/happytunesai/PNGTuber-GPT), based on the original by [RapidRabbit-11485](https://github.com/RapidRabbit-11485/PNGTuber-GPT)).
+>>>>>>> 24fd98a336c0ef5eeb40101629a15d2fe736a1bc
 
 Thanks to an intuitive interface and extensive configuration options, the application can be flexibly adapted to individual needs.
 
