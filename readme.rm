@@ -1,0 +1,242 @@
+# EZ STT Logger GUI
+
+**Version:** 0.9.7 (Structured)
+**Status:** Beta Release
+
+---
+
+## Overview
+
+The **EZ STT Logger GUI** is a versatile graphical application for real-time speech-to-text (STT) recognition and audio logging. The app supports multiple modes – from local Whisper models and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options (e.g., with Streamer.bot). Thanks to an intuitive interface and extensive configuration options, the application can be flexibly adapted to individual needs.
+
+---
+
+## Features
+
+-   **Multiple Transcription Modes:**
+    -   **Local (Whisper):** Use pre-installed Whisper models (e.g., *tiny*, *base*, *small*, *medium*, *large*) for transcription directly on your computer.
+    -   **OpenAI API:** Utilize the powerful OpenAI speech recognition by providing your OpenAI API key.
+    -   **ElevenLabs API:** Leverage the ElevenLabs API for an alternative STT solution.
+
+-   **Real-time Audio Processing:**
+    -   Audio input via connected microphones.
+    -   Segmentation of voice recordings based on defined buffer and silence thresholds.
+    -   Dynamic adjustment of transcription segments based on acoustic values.
+
+-   **Filtering and Replacement Mechanisms:**
+    -   Filter rules to clean up unwanted phrases (configurable per mode type).
+    -   Dynamic replacement of text fragments for standardization (e.g., automatic spelling correction).
+
+-   **Multi-Tab GUI:**
+    -   **Local:** Settings for the local Whisper model.
+    -   **OpenAI API:** Configuration for the OpenAI key.
+    -   **ElevenLabs API:** API key, model ID, and filter options.
+    -   **WebSocket:** Activation of a server for external control (expected command: `TOGGLE_RECORD`).
+    -   **Integration (SB):** Sending transcriptions to Streamer.bot via WebSocket.
+
+-   **Security & Configuration:**
+    -   Encryption of API keys using [Fernet cryptography](https://cryptography.io/).
+    -   Automatic generation and management of an encryption key (`secret.key`).
+    -   Configuration file (`config/config.json`) for saving all settings.
+
+-   **Logging & Error Handling:**
+    -   Comprehensive logging (including rotating log files in the `logs` directory).
+    -   Status and error messages are displayed in the GUI and logs.
+
+-   **Interactive Elements:**
+    -   Context menu in the transcription window for copying text and adding filter/replacement rules.
+    -   File dialogs for selecting the output file (TXT or JSON, defaults to `transcription_log.txt`).
+
+---
+
+## Dependencies
+
+The application uses various libraries. Ensure all the following dependencies are installed, preferably using the `requirements.txt` file:
+
+-   **GUI & File Dialogs:**
+    -   [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) (`customtkinter`)
+    -   `tkinter` (usually included with Python)
+-   **Audio & Signal Processing:**
+    -   `sounddevice`
+    -   `numpy`
+    -   `soundfile`
+-   **Speech Recognition & APIs:**
+    -   [OpenAI Whisper](https://github.com/openai/whisper) (`openai-whisper`) (optional, if local mode is used)
+    -   `openai` (for the OpenAI API)
+    -   [ElevenLabs Python Library](https://github.com/elevenlabs) (`elevenlabs`) (optional for ElevenLabs API)
+-   **Encryption:**
+    -   `cryptography`
+-   **WebSocket Communication:**
+    -   `websockets`
+
+Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyncio`, `subprocess`, `os`, and `re` are also required.
+
+> **Installation:**
+> To install all required packages, use the provided `requirements.txt` file:
+> ```bash
+> pip install -r requirements.txt
+> ```
+> *(Optional: For using the local Whisper mode, you also need to install `ffmpeg` on your system and run `pip install -U openai-whisper`. For GPU support, install PyTorch with CUDA. For ElevenLabs, run `pip install elevenlabs`)*
+
+---
+
+## Installation Guide
+
+1.  **Clone or Download the Repository:**
+    *(Replace placeholder URL with your actual repository if applicable)*
+    ```bash
+    git clone [https://github.com/YourUsername/ez_stt_logger_gui.git](https://github.com/YourUsername/ez_stt_logger_gui.git)
+    cd ez_stt_logger_gui
+    ```
+    Or simply download and extract the project files (`main.py`, `requirements.txt`, the `lib` folder, etc.).
+
+2.  **Create Directory Structure (if not present):**
+    Ensure you have the following structure (the application will try to create `config`, `filter`, `logs` on first run if they don't exist):
+    ```
+    ez_stt_logger_gui/
+    ├── config/
+    ├── filter/
+    ├── lib/
+    │   ├── __init__.py
+    │   ├── constants.py
+    │   ├── gui.py
+    │   ├── utils.py
+    │   ├── ... (other .py files)
+    ├── logs/
+    ├── main.py
+    ├── requirements.txt
+    └── (optional: logo.ico)
+    ```
+
+3.  **Install Dependencies:**
+    (Recommended: Create and activate a virtual environment first)
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Configuration and Encryption:**
+    -   On the first run, an encryption key will be automatically generated and saved in `config/secret.key`.
+        **Important:** Keep this file safe! Without it, API keys cannot be decrypted. Do NOT commit it to Git.
+    -   A default `config/config.json` will be created on the first close or can be adjusted via the GUI. Filter files (`filter/filter_patterns.txt`, etc.) and the replacement file (`filter/replacements.json`) will also be created with defaults if they don't exist.
+
+5.  **Start the Application:**
+    ```bash
+    python main.py
+    ```
+
+---
+
+## Usage / Operation
+
+### User Interface
+
+-   **Tabs and Settings:**
+    -   **Local:** Select your desired Whisper model. Basic audio buffer settings are below the tabs.
+    -   **OpenAI API:** Enter your OpenAI API key. (Alternatively, set the `OPENAI_API_KEY` environment variable).
+    -   **ElevenLabs API:** Configure your ElevenLabs API key and Model ID. Option to filter content in parentheses/brackets.
+    -   **WebSocket:** Enable the WebSocket server if you want to receive external commands. The expected command is `TOGGLE_RECORD`.
+    -   **Integration (SB):** Enable integration with Streamer.bot to send transcription messages to a configured WebSocket server.
+
+-   **Recording:**
+    -   Select your preferred microphone from the dropdown menu (use "Reload" if needed).
+    -   Set language (ISO code like `de`, `en`, or leave empty for auto-detect), output format (TXT/JSON), and the output file path (defaults to `transcription_log.txt`).
+    -   Start recording using the **"Start Recording"** button. (The button is disabled if the current tab does not permit recording, e.g., WebSocket or SB Integration tabs, but the recording state can still be toggled via WebSocket).
+
+-   **Interactive Features:**
+    -   **Context Menu:** Right-click in the transcription area allows:
+        -   Copying selected text.
+        -   Adding selected text to the appropriate filter list.
+        -   Adding replacement rules (e.g., to automatically insert the standard name *Tuneingway*).
+
+### Commands and External Control
+
+-   **WebSocket Control:**
+    -   Once the WebSocket server is active, external clients can send the command `TOGGLE_RECORD` to start or stop the recording, regardless of the currently active tab in the GUI. The indicator light will reflect the status.
+
+-   **Streamer.bot Integration:**
+    -   Enable sending transcriptions to Streamer.bot under the "Integration (SB)" tab.
+    -   The prefix text will be added to every message sent.
+
+---
+
+## Configuration
+
+The application saves all important settings in the `config/config.json` file. Configurable parameters include:
+
+-   **Mode:** Selection between local, OpenAI, or ElevenLabs.
+-   **API Keys:** Stored encrypted using Fernet.
+-   **Microphone:** Name of the selected device.
+-   **Model:** Choice of Whisper model in local mode.
+-   **Language:** ISO code (e.g., `de` for German) or empty for auto-detection.
+-   **Audio Buffers:** Minimum buffer and silence durations for segmentation.
+-   **WebSocket & SB Settings:** Activation status, ports, and URLs.
+
+Changes to filter and replacement files (`filter/` directory) can be made directly or via the GUI context menu.
+
+---
+
+## Example Command Line Usage
+
+-   **Start the application:**
+    ```bash
+    python main.py
+    ```
+
+-   **Setting API Keys via Environment Variables (Optional):**
+    *(This is often preferred over storing keys in the config file)*
+    -   Windows (Command Prompt):
+        ```cmd
+        set OPENAI_API_KEY=sk-...
+        set ELEVENLABS_API_KEY=...
+        python main.py
+        ```
+    -   Windows (PowerShell):
+        ```powershell
+        $env:OPENAI_API_KEY="sk-..."
+        $env:ELEVENLABS_API_KEY="..."
+        python main.py
+        ```
+    -   Linux/macOS:
+        ```bash
+        export OPENAI_API_KEY="sk-..."
+        export ELEVENLABS_API_KEY="..."
+        python main.py
+        ```
+
+---
+
+## Development & Contributions
+
+If you want to contribute to the development:
+
+-   Fork the repository.
+-   Create a new branch (`feature/new_feature`).
+-   Ensure all dependencies and functions are integrated into the existing configuration.
+-   Submit a pull request – we appreciate your feedback!
+
+---
+
+## Known Issues and TODOs
+
+-   **Audio Buffering Logic Optimization:** Further adjustments for better silence detection are planned.
+-   **Extended API Integration:** Support for additional speech recognition services.
+-   **Error Handling:** Improvement of error messages and user guidance for API/connection problems.
+-   **Streamer.bot Client Robustness:** Improve reconnection logic and error handling for the Streamer.bot client.
+
+---
+
+## License
+
+This software is provided under the [MIT License](LICENSE) (You would need to create a LICENSE file).
+
+---
+
+## Contact
+
+For questions, issues, or contribution suggestions, please contact us at:
+**Email:** support@example.com *(Placeholder)*
+**GitHub:** [github.com/YourUsername/ez_stt_logger_gui](https://github.com/YourUsername/ez_stt_logger_gui) *(Placeholder)*
+
+---
+
+*Created with ❤️*
