@@ -5,6 +5,8 @@
 
 ---
 
+<img width="426" alt="EZ _SST_Logger_GUI" src="https://github.com/user-attachments/assets/d0be0cd2-516c-4e00-94c4-03130aacbbd9" />
+
 ## Overview
 
 The **EZ STT Logger GUI** is a versatile graphical application for real-time speech-to-text (STT) recognition and audio logging. The app supports multiple modes – from local Whisper models and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options.
