@@ -183,6 +183,8 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     -   The application will send transcriptions as JSON messages in the format: `{"source": "stt", "text": "PREFIX + transcribed text"}`.
     -   Your Streamer.bot instance needs corresponding actions set up to listen for WebSocket client messages and process this JSON payload (e.g., using the `websocketClientReceive` trigger and actions available in extended PNGTuber-GPT versions).
 
+    Link: [https://github.com/happytunesai/PNGTuber-GPT](https://github.com/happytunesai/PNGTuber-GPT)
+
 ---
 
 ## Configuration
