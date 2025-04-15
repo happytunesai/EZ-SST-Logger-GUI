@@ -66,11 +66,12 @@ DEFAULT_FILTER_PATTERNS_STR = [
 
 # --- Standard-Ersetzungen (wenn Datei nicht existiert) ---
 DEFAULT_REPLACEMENTS = {
-    "(?i)Tuning[Ww]ay": "Tuneingway",
-    "(?i)Tuning way": "Tuneingway",
-    "(?i)Tun in Wah": "Tuneingway",
-    "(?i)Tuning Bay": "Tuneingway",
-    "(?i)Turing way": "Tuneingway",
+    # Ersetze gängige Falschhörungen/Schreibweisen von "StreamerXY"
+    # (?i) = ignoriere Groß/Kleinschreibung, \b = Wortgrenze, \s* = beliebig viele Leerzeichen
+    r"(?i)\bStreamer\s*X\s*Y\b": "StreamerXY",      # z.B. Streamer X Y, Streamer XY
+    r"(?i)\bStreamer\s*Ex\s*Why\b": "StreamerXY",   # z.B. Streamer Ex Why
+    r"(?i)\bStreamer\s*ix\s*why\b": "StreamerXY",   # z.B. Streamer ix why
+    # Füge hier bei Bedarf weitere häufige Fehler hinzu
 }
 
 # --- Verfügbare lokale Modelle ---
