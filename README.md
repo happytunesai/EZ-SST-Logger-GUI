@@ -174,9 +174,9 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
         -   **URL:** The WebSocket server address shown in the GUI (Default: `ws://localhost:8765`)
         -   **Message:** `TOGGLE_RECORD`
     -   Pressing this button on your Stream Deck will now start or stop the recording in the EZ STT Logger GUI.
-
- <img width="264" alt="Stream-Deck" src="https://github.com/user-attachments/assets/f0411000-91a6-4163-acb8-d8fb84a8dea9" />
-
+    - Example configuration:
+      
+      ![Stream-Deck: Web Requests](https://github.com/user-attachments/assets/f0411000-91a6-4163-acb8-d8fb84a8dea9)
 
 -   **Streamer.bot Integration:**
     -   Enable sending transcriptions to Streamer.bot under the "Integration (SB)" tab and configure the correct Streamer.bot WebSocket URL.
