@@ -7,7 +7,11 @@
 
 ## Overview
 
-The **EZ STT Logger GUI** is a versatile graphical application for real-time speech-to-text (STT) recognition and audio logging. The app supports multiple modes – from local Whisper models and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options (e.g., with Streamer.bot). Thanks to an intuitive interface and extensive configuration options, the application can be flexibly adapted to individual needs.
+The **EZ STT Logger GUI** is a versatile graphical application for real-time speech-to-text (STT) recognition and audio logging. The app supports multiple modes – from local Whisper models and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options.
+
+It is often used as an STT extension for Streamer.bot setups, particularly in conjunction with extended versions of the **PNGTuber-GPT** addon (like the one by happytunesai, based on the original by RapidRabbit-11485).
+
+Thanks to an intuitive interface and extensive configuration options, the application can be flexibly adapted to individual needs.
 
 ---
 
@@ -31,8 +35,8 @@ The **EZ STT Logger GUI** is a versatile graphical application for real-time spe
     -   **Local:** Settings for the local Whisper model.
     -   **OpenAI API:** Configuration for the OpenAI key.
     -   **ElevenLabs API:** API key, model ID, and filter options.
-    -   **WebSocket:** Activation of a server for external control (expected command: `TOGGLE_RECORD`).
-    -   **Integration (SB):** Sending transcriptions to Streamer.bot via WebSocket.
+    -   **WebSocket:** Activation of a server for external control (e.g., via Stream Deck, expected command: `TOGGLE_RECORD`).
+    -   **Integration (SB):** Sending transcriptions to Streamer.bot via WebSocket, often used with PNGTuber-GPT addons.
     -   **Language Selection:** Dropdown menu to switch GUI language (e.g., English, German).
     -   **Log Level Control:** Dropdown menu to set the minimum logging level for console output.
 
@@ -140,7 +144,7 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     -   **OpenAI API:** Enter your OpenAI API key.
     -   **ElevenLabs API:** Configure your ElevenLabs API key and Model ID. Option to filter content in parentheses/brackets.
     -   **WebSocket:** Enable the WebSocket server for external control.
-    -   **Integration (SB):** Enable sending transcriptions to Streamer.bot.
+    -   **Integration (SB):** Enable sending transcriptions to Streamer.bot (e.g., for use with PNGTuber-GPT actions).
     -   **Common Settings (Below Tabs):** Configure Microphone, STT Language (optional), Output Format, Output File, Buffering/Silence times.
     -   **Language Selector (Top Right):** Choose the GUI language (e.g., English, Deutsch).
     -   **Log Level Selector (Bottom Right):** Choose the minimum log level for console output (DEBUG shows everything, INFO shows INFO and above, etc.).
@@ -159,12 +163,20 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
 
 ### Commands and External Control
 
--   **WebSocket Control:**
-    -   Once the WebSocket server is active, external clients can send `TOGGLE_RECORD` to start/stop recording.
+-   **WebSocket Control (e.g., via Stream Deck):**
+    -   Ensure the WebSocket server is enabled in the GUI (WebSocket Tab) and the application is running.
+    -   To control recording via a Stream Deck, you can use the **"Web Requests"** plugin by Elgato ([Marketplace Link](https://marketplace.elgato.com/product/web-requests-d7d46868-f9c8-4fa5-b775-ab3b9a7c8add)).
+    -   Configure a Stream Deck button with the following settings within the "Web Requests" plugin:
+        -   **Request Type / Method:** `WebSocket Message`
+        -   **Title:** Anything you like (e.g., "Toggle STT Rec")
+        -   **URL:** The WebSocket server address shown in the GUI (Default: `ws://localhost:8765`)
+        -   **Message:** `TOGGLE_RECORD`
+    -   Pressing this button on your Stream Deck will now start or stop the recording in the EZ STT Logger GUI.
 
 -   **Streamer.bot Integration:**
-    -   Enable sending transcriptions to Streamer.bot under the "Integration (SB)" tab.
-    -   The prefix text will be added to every message sent.
+    -   Enable sending transcriptions to Streamer.bot under the "Integration (SB)" tab and configure the correct Streamer.bot WebSocket URL.
+    -   The application will send transcriptions as JSON messages in the format: `{"source": "stt", "text": "PREFIX + transcribed text"}`.
+    -   Your Streamer.bot instance needs corresponding actions set up to listen for WebSocket client messages and process this JSON payload (e.g., using the `websocketClientReceive` trigger and actions available in extended PNGTuber-GPT versions).
 
 ---
 
@@ -243,4 +255,4 @@ For questions, issues, or contribution suggestions, please contact us at:
 
 ---
 
-*Created with ❤️ and AI*
+*Created with ❤️ + AI*
