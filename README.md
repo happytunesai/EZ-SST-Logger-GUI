@@ -204,28 +204,6 @@ Changes to filter and replacement files (`filter/` directory) can be made direct
     ```bash
     python main.py
     ```
-
--   **Setting API Keys via Environment Variables (Optional):**
-    *(This is often preferred over storing keys in the config file)*
-    -   Windows (Command Prompt):
-        ```cmd
-        set OPENAI_API_KEY=sk-...
-        set ELEVENLABS_API_KEY=...
-        python main.py
-        ```
-    -   Windows (PowerShell):
-        ```powershell
-        $env:OPENAI_API_KEY="sk-..."
-        $env:ELEVENLABS_API_KEY="..."
-        python main.py
-        ```
-    -   Linux/macOS:
-        ```bash
-        export OPENAI_API_KEY="sk-..."
-        export ELEVENLABS_API_KEY="..."
-        python main.py
-        ```
-
 ---
 
 ## Development & Contributions
