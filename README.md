@@ -206,17 +206,6 @@ Changes to filter and replacement files (`filter/` directory) can be made direct
     ```
 ---
 
-## Development & Contributions
-
-If you want to contribute to the development:
-
--   Fork the repository.
--   Create a new branch (`feature/new_feature`).
--   Ensure all dependencies and functions are integrated into the existing configuration.
--   Submit a pull request – we appreciate your feedback!
-
----
-
 ## Known Issues and TODOs
 
 -   **Audio Buffering Logic Optimization:** Further adjustments for better silence detection are planned.
