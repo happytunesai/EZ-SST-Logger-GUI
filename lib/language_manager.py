@@ -1,25 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-Verwaltet das Laden und Abrufen von Sprachressourcen.
+Handles loading and retrieving language resources.
 """
 import json
 import os
 from lib.logger_setup import logger
 from lib.constants import LANGUAGE_DIR, DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES
 
-# Globale Variable für das aktuell geladene Sprachwörterbuch
-# Alternativ könnte dies in einer Klasse gekapselt oder immer übergeben werden.
+# Global variables for the currently loaded language dictionary
 current_lang_dict = {}
 current_lang_code = DEFAULT_LANGUAGE
 
 def load_language(lang_code):
     """
-    Lädt eine Sprachdatei (JSON) und gibt das resultierende Dictionary zurück.
-    Fällt auf die Standardsprache zurück, wenn die angeforderte Sprache nicht gefunden wird.
+    Loads a language file (JSON) and sets it as the active dictionary.
+    Falls back to the default language if the requested file is missing.
     """
     global current_lang_dict, current_lang_code
+
     if lang_code not in SUPPORTED_LANGUAGES:
-        logger.warning(f"Sprachcode '{lang_code}' nicht unterstützt. Fallback auf '{DEFAULT_LANGUAGE}'.")
+        logger.warning(f"Language code '{lang_code}' is not supported. Falling back to '{DEFAULT_LANGUAGE}'.")
         lang_code = DEFAULT_LANGUAGE
 
     filepath = os.path.join(LANGUAGE_DIR, f"{lang_code}.json")
@@ -27,71 +27,71 @@ def load_language(lang_code):
     loaded_dict = {}
 
     try:
-        logger.info(f"Lade Sprachdatei: {filepath}")
+        logger.info(f"Loading language file: {filepath}")
         with open(filepath, 'r', encoding='utf-8') as f:
             loaded_dict = json.load(f)
         current_lang_code = lang_code
-        logger.info(f"Sprache '{lang_code}' erfolgreich geladen.")
+        logger.info(f"Language '{lang_code}' loaded successfully.")
 
     except FileNotFoundError:
-        logger.error(f"Sprachdatei '{filepath}' nicht gefunden.")
+        logger.error(f"Language file '{filepath}' not found.")
         if lang_code != DEFAULT_LANGUAGE:
-            logger.warning(f"Versuche Fallback auf Standardsprache '{DEFAULT_LANGUAGE}'...")
+            logger.warning(f"Attempting fallback to default language '{DEFAULT_LANGUAGE}'...")
             try:
                 with open(default_filepath, 'r', encoding='utf-8') as f:
                     loaded_dict = json.load(f)
                 current_lang_code = DEFAULT_LANGUAGE
-                logger.info(f"Standardsprache '{DEFAULT_LANGUAGE}' erfolgreich geladen.")
+                logger.info(f"Default language '{DEFAULT_LANGUAGE}' loaded successfully.")
             except FileNotFoundError:
-                logger.error(f"Standardsprachdatei '{default_filepath}' ebenfalls nicht gefunden! UI-Texte fehlen möglicherweise.")
-                current_lang_code = None # Keine Sprache geladen
+                logger.error(f"Default language file '{default_filepath}' also not found! UI texts may be missing.")
+                current_lang_code = None
             except (json.JSONDecodeError, IOError) as e:
-                 logger.error(f"Fehler beim Laden/Parsen der Standardsprachdatei '{default_filepath}': {e}")
-                 current_lang_code = None
+                logger.error(f"Error loading/parsing default language file '{default_filepath}': {e}")
+                current_lang_code = None
         else:
-             # Default-Datei nicht gefunden
-             current_lang_code = None
+            current_lang_code = None
 
     except (json.JSONDecodeError, IOError) as e:
-        logger.error(f"Fehler beim Laden/Parsen der Sprachdatei '{filepath}': {e}")
-        # Optional: Versuche Fallback auf Default hier auch?
-        current_lang_code = None # Keine gültige Sprache geladen
+        logger.error(f"Error loading/parsing language file '{filepath}': {e}")
+        current_lang_code = None
 
-    current_lang_dict = loaded_dict # Aktualisiere globales Dict
-    return loaded_dict # Gebe das geladene Dict zurück (nützlich für GUI-Init)
-
+    current_lang_dict = loaded_dict
+    return loaded_dict
 
 def get_string(key, **kwargs):
     """
-    Ruft einen String anhand seines Schlüssels aus dem aktuell geladenen Sprachwörterbuch ab.
-    Unterstützt Keyword-Argumente für die Formatierung.
+    Retrieves a string from the current language dictionary using a key.
+    Supports formatting with optional keyword arguments.
 
     Args:
-        key (str): Der Schlüssel des gewünschten Strings.
-        **kwargs: Optionale Keyword-Argumente zum Formatieren des Strings (z.B. version=...).
+        key (str): The translation key.
+        **kwargs: Optional format parameters.
 
     Returns:
-        str: Der übersetzte und formatierte String, oder der Schlüssel selbst bei Fehlern.
+        str: The translated and formatted string, or the key itself on failure.
     """
-    text = current_lang_dict.get(key, key) # Fallback auf den Schlüssel selbst, wenn nicht gefunden
-    if not isinstance(text, str): # Falls der Wert im JSON keine Zeichenkette ist
-        logger.warning(f"Wert für Schlüssel '{key}' in Sprache '{current_lang_code}' ist kein String: {text}")
+    text = current_lang_dict.get(key, key)
+    if not isinstance(text, str):
+        logger.warning(f"Value for key '{key}' in language '{current_lang_code}' is not a string: {text}")
         return key
 
     if kwargs:
         try:
             text = text.format(**kwargs)
         except KeyError as e:
-            logger.warning(f"Fehlender Formatierungsplatzhalter '{e}' im Text für Schlüssel '{key}' (Sprache: {current_lang_code}). Originaltext: '{text}'")
+            logger.warning(f"Missing formatting key '{e}' in string for key '{key}' (language: {current_lang_code}). Original: '{text}'")
         except Exception as e:
-            logger.error(f"Fehler bei String-Formatierung für Schlüssel '{key}': {e}. Originaltext: '{text}'")
+            logger.error(f"String formatting error for key '{key}': {e}. Original: '{text}'")
     return text
 
 def set_current_language(lang_code):
-    """Lädt die angegebene Sprache und macht sie zur aktuellen Sprache."""
+    """
+    Loads the given language and sets it as current.
+    """
     load_language(lang_code)
 
-# Lade die Standardsprache beim ersten Import des Moduls
-# load_language(DEFAULT_LANGUAGE)
-# Besser: In main.py laden, nachdem Config gelesen wurde, um User-Präferenz zu nutzen.
-
+def tr(key, **kwargs):
+    """
+    Shortcut for get_string – usable globally in the app.
+    """
+    return get_string(key, **kwargs)

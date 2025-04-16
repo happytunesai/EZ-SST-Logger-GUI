@@ -1,163 +1,170 @@
 # -*- coding: utf-8 -*-
 """
-Funktionen zur Textverarbeitung: Laden/Anwenden von Filtern und Ersetzungen.
+Functions for text processing: Loading/applying filters and replacements.
 """
 import os
 import re
 import json
 
-# Importiere Konstanten und Logger
+# Import constants and logger
 from lib.constants import (
     FILTER_FILE, FILTER_FILE_EL, REPLACEMENTS_FILE,
     DEFAULT_FILTER_PATTERNS_STR, DEFAULT_REPLACEMENTS
 )
 from lib.logger_setup import logger
+from lib.language_manager import tr
 
 def load_filter_patterns(filter_path):
-    """Lädt Regex-Filter-Patterns aus einer Datei."""
+    """Loads regex filter patterns from a file."""
     patterns = []
     defaults_to_write = []
 
-    # Bestimme, welche Standard-Patterns basierend auf dem Dateipfad verwendet werden sollen
+    # Determine which default patterns to use based on file path
     if filter_path == FILTER_FILE:
         defaults_to_write = DEFAULT_FILTER_PATTERNS_STR
     elif filter_path == FILTER_FILE_EL:
-        # Derzeit keine spezifischen Standardfilter für ElevenLabs
+        # Currently no specific default filters for ElevenLabs
         defaults_to_write = []
 
-    # Erstelle die Datei mit Defaults, falls sie nicht existiert
+    # Create the file with defaults if it doesn't exist
     if not os.path.exists(filter_path):
-        logger.info(f"Filterdatei '{filter_path}' nicht gefunden. Erstelle Datei mit Standardmustern (falls vorhanden)...")
+        logger.info(tr("log_tp_filter_file_not_found", filter_path=filter_path))
         try:
             with open(filter_path, 'w', encoding='utf-8') as f:
                 if defaults_to_write:
                     for pattern_str in defaults_to_write:
                         f.write(pattern_str + "\n")
-                    logger.info(f"Standard-Filterdatei '{filter_path}' erstellt.")
+                    logger.info(tr("log_tp_filter_default_created", filter_path=filter_path))
                 else:
-                     logger.info(f"Leere Filterdatei '{filter_path}' erstellt (keine Defaults für diesen Typ).")
+                    logger.info(tr("log_tp_filter_empty_created", filter_path=filter_path))
         except IOError as e:
-            logger.error(f"Konnte Standardfilterdatei '{filter_path}' nicht erstellen: {e}")
-            # Fallback: Kompiliere Standard-Patterns direkt, wenn Dateierstellung fehlschlug
+            logger.error(tr("log_tp_filter_create_error", filter_path=filter_path, error=str(e)))
+            # Fallback: Compile default patterns directly if file creation failed
             for pattern_str in defaults_to_write:
                 try:
                     patterns.append(re.compile(pattern_str, re.IGNORECASE))
                 except re.error as re_e:
-                    logger.error(f"Ungültiges Standard-Regex '{pattern_str}': {re_e}")
-            return patterns # Gebe kompilierte Defaults zurück
+                    logger.error(tr("log_tp_filter_invalid_regex", pattern=pattern_str, error=str(re_e)))
+            return patterns # Return compiled defaults
 
-    # Lade Patterns aus der existierenden oder neu erstellten Datei
-    logger.info(f"Lade Filter-Patterns aus '{filter_path}'...")
+    # Load patterns from existing or newly created file
+    logger.info(tr("log_tp_filter_loading", filter_path=filter_path))
     try:
         with open(filter_path, 'r', encoding='utf-8') as f:
             for i, line in enumerate(f):
                 pattern_str = line.strip()
-                # Ignoriere leere Zeilen und Kommentare
+                # Ignore empty lines and comments
                 if pattern_str and not pattern_str.startswith('#'):
                     try:
-                        # Kompiliere das Regex-Pattern (ignoriere Groß-/Kleinschreibung)
+                        # Compile regex pattern (ignore case)
                         patterns.append(re.compile(pattern_str, re.IGNORECASE))
                     except re.error as e:
-                        logger.warning(f"Ungültiges Regex in '{filter_path}' Zeile {i+1}: '{pattern_str}' - {e}. Wird ignoriert.")
-        logger.info(f"{len(patterns)} Filter-Patterns aus '{os.path.basename(filter_path)}' geladen.")
+                        logger.warning(tr("log_tp_filter_invalid_line", 
+                                          filter_path=filter_path, 
+                                          line=i+1, 
+                                          pattern=pattern_str, 
+                                          error=str(e)))
+        logger.info(tr("log_tp_filter_loaded", 
+                      count=len(patterns), 
+                      filename=os.path.basename(filter_path)))
     except IOError as e:
-        logger.error(f"Konnte Filterdatei '{filter_path}' nicht lesen: {e}. Keine Filter für diesen Typ aktiv.")
+        logger.error(tr("log_tp_filter_read_error", filter_path=filter_path, error=str(e)))
     except Exception as e:
-         logger.exception(f"Unerwarteter Fehler beim Laden der Filterdatei '{filter_path}'")
+        logger.exception(tr("log_tp_filter_load_unexpected", filter_path=filter_path))
 
     return patterns
 
 def filter_transcription(text, patterns_to_use, filter_parentheses):
     """
-    Wendet die übergebenen Filter an und entfernt optional Text in Klammern.
+    Applies the provided filters and optionally removes text in parentheses.
     Args:
-        text (str): Der zu filternde Text.
-        patterns_to_use (list): Eine Liste kompilierter Regex-Objekte.
-        filter_parentheses (bool): Ob Inhalte in (...) und [...] entfernt werden sollen.
+        text (str): The text to filter.
+        patterns_to_use (list): A list of compiled regex objects.
+        filter_parentheses (bool): Whether to remove content in (...) and [...].
     Returns:
-        str: Der gefilterte Text.
+        str: The filtered text.
     """
     if not text:
-        return "" # Gebe leeren String zurück, wenn Eingabe leer ist
+        return "" # Return empty string if input is empty
 
     cleaned_text = text
-    # Optional: Entferne zuerst Inhalte in Klammern
+    # Optional: First remove contents in parentheses
     if filter_parentheses:
-        # Entferne Inhalte in runden Klammern, inklusive der Klammern selbst
+        # Remove content in round parentheses, including the parentheses themselves
         cleaned_text = re.sub(r"\([^)]*\)", "", cleaned_text).strip()
-        # Entferne auch Inhalte in eckigen Klammern (oft für Geräusche/Musik)
+        # Also remove content in square brackets (often for sounds/music)
         cleaned_text = re.sub(r"\[[^\]]*\]", "", cleaned_text).strip()
 
-    # Teile in Zeilen auf, um zeilenweise zu filtern
+    # Split into lines to filter line by line
     lines = cleaned_text.splitlines()
     filtered_lines = []
 
     for line in lines:
-        temp_line = line.strip() # Arbeite mit bereinigten Zeilen
+        temp_line = line.strip() # Work with cleaned lines
 
-        # Überspringe leere Zeilen, die durch Filterung oder Originaleingabe entstanden sind
+        # Skip empty lines created by filtering or from original input
         if not temp_line:
             continue
 
         is_unwanted = False
-        # Wende Regex-Filter an, wenn Patterns geladen sind
+        # Apply regex filters if patterns are loaded
         if patterns_to_use:
-            # Prüfe, ob irgendein Pattern auf die aktuelle Zeile passt
+            # Check if any pattern matches the current line
             is_unwanted = any(pattern.search(temp_line) for pattern in patterns_to_use)
 
-        # Behalte die Zeile, wenn sie nicht leer ist und von keinem Filter getroffen wird
+        # Keep the line if it's not empty and not matched by any filter
         if not is_unwanted:
             filtered_lines.append(temp_line)
         else:
-            logger.debug(f"Zeile gefiltert: '{temp_line}'")
+            logger.debug(f"Line filtered: '{temp_line}'")
 
-    # Füge die verbleibenden Zeilen wieder zusammen
+    # Rejoin the remaining lines
     final_text = "\n".join(filtered_lines).strip()
-    logger.debug(f"Filter Ergebnis: '{final_text[:100]}...'")
+    logger.debug(tr("log_tp_filter_applied", result=final_text[:100] + "..." if len(final_text) > 100 else final_text))
     return final_text
 
 def load_replacements(replacements_path):
-    """Lädt Ersetzungsregeln (Regex-Pattern -> Ersetzungsstring) aus einer JSON-Datei."""
-    # Erstelle eine Standard-Ersetzungsdatei, falls sie nicht existiert
+    """Loads replacement rules (regex pattern -> replacement string) from a JSON file."""
+    # Create a default replacement file if it doesn't exist
     if not os.path.exists(replacements_path):
-        logger.info(f"Ersetzungsdatei '{replacements_path}' nicht gefunden. Erstelle Beispieldatei...")
+        logger.info(tr("log_tp_replacements_file_not_found", replacements_path=replacements_path))
         try:
             with open(replacements_path, 'w', encoding='utf-8') as f:
-                # Schreibe das Standard-Ersetzungs-Dictionary in die neue Datei
+                # Write the default replacement dictionary to the new file
                 json.dump(DEFAULT_REPLACEMENTS, f, indent=4, ensure_ascii=False)
-            logger.info(f"Beispiel-Ersetzungsdatei '{replacements_path}' erstellt.")
-            return DEFAULT_REPLACEMENTS # Gebe die Defaults zurück, die zum Erstellen verwendet wurden
+            logger.info(tr("log_tp_replacements_created", replacements_path=replacements_path))
+            return DEFAULT_REPLACEMENTS # Return the defaults used for creation
         except IOError as e:
-            logger.error(f"Konnte Beispiel-Ersetzungsdatei '{replacements_path}' nicht erstellen: {e}")
-            return {} # Gebe leeres Dict bei Erstellungsfehler zurück
+            logger.error(tr("log_tp_replacements_create_error", replacements_path=replacements_path, error=str(e)))
+            return {} # Return empty dict on creation error
 
-    # Lade Ersetzungen aus der existierenden Datei
-    logger.info(f"Lade Ersetzungen aus '{replacements_path}'...")
+    # Load replacements from the existing file
+    logger.info(tr("log_tp_replacements_loading", replacements_path=replacements_path))
     try:
         with open(replacements_path, 'r', encoding='utf-8') as f:
             replacements = json.load(f)
-        # Validiere, dass die geladenen Daten ein Dictionary sind
+        # Validate that the loaded data is a dictionary
         if not isinstance(replacements, dict):
-            logger.error(f"Inhalt von '{replacements_path}' ist kein gültiges JSON-Objekt (Dictionary erwartet).")
-            return {} # Gebe leeres Dict zurück, wenn Format falsch ist
-        logger.info(f"{len(replacements)} Ersetzungsregeln aus '{replacements_path}' geladen.")
+            logger.error(tr("log_tp_replacements_invalid_format", replacements_path=replacements_path))
+            return {} # Return empty dict if format is wrong
+        logger.info(tr("log_tp_replacements_loaded", count=len(replacements), replacements_path=replacements_path))
         return replacements
     except (json.JSONDecodeError, IOError) as e:
-        logger.error(f"Konnte Ersetzungsdatei '{replacements_path}' nicht lesen oder parsen: {e}. Keine Ersetzungen aktiv.")
-        return {} # Gebe leeres Dict bei Lese-/Parse-Fehler zurück
+        logger.error(tr("log_tp_replacements_read_error", replacements_path=replacements_path, error=str(e)))
+        return {} # Return empty dict on read/parse error
     except Exception as e:
-        logger.exception(f"Unerwarteter Fehler beim Laden der Ersetzungen aus '{replacements_path}'")
-        return {} # Gebe leeres Dict bei unerwartetem Fehler zurück
+        logger.exception(tr("log_tp_replacements_load_unexpected", replacements_path=replacements_path))
+        return {} # Return empty dict on unexpected error
 
 def save_replacements(replacements_dict, replacements_path):
     """
-    Speichert das Ersetzungs-Dictionary in einer JSON-Datei und mischt es mit vorhandenem Inhalt.
-    Gibt True bei Erfolg zurück, False bei Fehler.
+    Saves the replacement dictionary to a JSON file, merging with existing content.
+    Returns True on success, False on error.
     """
-    logger.info(f"Speichere Ersetzungen in '{replacements_path}'...")
+    logger.info(tr("log_tp_replacements_saving", replacements_path=replacements_path))
     merged_replacements = {}
     try:
-        # Lade existierende Ersetzungen, falls die Datei existiert
+        # Load existing replacements if the file exists
         if os.path.exists(replacements_path):
             try:
                 with open(replacements_path, 'r', encoding='utf-8') as f:
@@ -165,46 +172,52 @@ def save_replacements(replacements_dict, replacements_path):
                     if isinstance(existing_replacements, dict):
                         merged_replacements = existing_replacements
                     else:
-                        logger.warning(f"Bestehende Datei '{replacements_path}' enthält kein gültiges Dictionary. Wird überschrieben.")
+                        logger.warning(tr("log_tp_replacements_merge_error", replacements_path=replacements_path))
             except (json.JSONDecodeError, IOError) as e:
-                logger.warning(f"Konnte bestehende Ersetzungen aus '{replacements_path}' nicht laden/parsen ({e}). Datei wird überschrieben.")
+                logger.warning(f"Could not load/parse existing replacements from '{replacements_path}' ({e}). File will be overwritten.")
 
-        # Aktualisiere das geladene/leere Dictionary mit den neuen Ersetzungen
-        # Neue Regeln überschreiben existierende mit demselben Schlüssel (Pattern)
+        # Update the loaded/empty dictionary with new replacements
+        # New rules overwrite existing ones with the same key (pattern)
         merged_replacements.update(replacements_dict)
 
-        # Schreibe das gemischte Dictionary zurück in die Datei
+        # Write the merged dictionary back to the file
         with open(replacements_path, 'w', encoding='utf-8') as f:
             json.dump(merged_replacements, f, indent=4, ensure_ascii=False)
-        logger.info(f"{len(merged_replacements)} Ersetzungsregeln in '{replacements_path}' gespeichert.")
-        return True # Erfolg signalisieren
+        logger.info(tr("log_tp_replacements_saved", count=len(merged_replacements), replacements_path=replacements_path))
+        return True # Signal success
     except IOError as e:
-        logger.error(f"Konnte Ersetzungsdatei '{replacements_path}' nicht schreiben: {e}")
-        # GUI-Nachricht wird von der aufrufenden Funktion (GUI) gesendet
-        return False # Fehler signalisieren
+        logger.error(tr("log_tp_replacements_save_error", replacements_path=replacements_path, error=str(e)))
+        # GUI message will be sent by the calling function (GUI)
+        return False # Signal error
     except Exception as e:
-        logger.exception("Unerwarteter Fehler beim Speichern der Ersetzungen")
-        return False # Fehler signalisieren
+        logger.exception(tr("log_tp_replacements_save_unexpected"))
+        return False # Signal error
 
 def apply_replacements(text, replacements_dict):
-    """Wendet die übergebenen Ersetzungsregeln auf den gegebenen Text an."""
+    """Applies the provided replacement rules to the given text."""
     if not text or not replacements_dict:
-        return text # Gebe Originaltext zurück, wenn kein Text oder keine Ersetzungen
+        return text # Return original text if no text or no replacements
 
     modified_text = text
-    # Iteriere durch jedes Pattern-Ersetzungs-Paar im Dictionary
+    # Iterate through each pattern-replacement pair in the dictionary
     for pattern_str, replacement_str in replacements_dict.items():
         try:
-            # Führe Regex-Ersetzung durch (ignoriere Groß-/Kleinschreibung)
+            # Perform regex replacement (ignore case)
             modified_text = re.sub(pattern_str, replacement_str, modified_text, flags=re.IGNORECASE)
         except re.error as e:
-            # Logge Warnung, wenn ein Regex-Pattern ungültig ist
-            logger.warning(f"Fehler beim Anwenden der Regex-Ersetzung '{pattern_str}' -> '{replacement_str}': {e}")
+            # Log warning if a regex pattern is invalid
+            logger.warning(tr("log_tp_replacements_rule_error", 
+                             pattern=pattern_str, 
+                             replacement=replacement_str, 
+                             error=str(e)))
         except Exception as e:
-            # Logge Warnung für jeden anderen unerwarteten Fehler während der Ersetzung
-            logger.warning(f"Unerwarteter Fehler bei der Ersetzung '{pattern_str}' -> '{replacement_str}': {e}")
+            # Log warning for any other unexpected error during replacement
+            logger.warning(tr("log_tp_replacements_unexpected_error", 
+                             pattern=pattern_str, 
+                             replacement=replacement_str, 
+                             error=str(e)))
 
     if modified_text != text:
-        logger.debug(f"Ersetzungen angewendet. Ergebnis: '{modified_text[:100]}...'")
+        logger.debug(tr("log_tp_replacements_applied", 
+                       result=modified_text[:100] + "..." if len(modified_text) > 100 else modified_text))
     return modified_text
-
