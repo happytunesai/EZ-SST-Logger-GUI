@@ -43,7 +43,7 @@ DEFAULT_STREAMERBOT_WS_URL = "ws://127.0.0.1:1337/"
 
 # --- Default values & configuration ---
 DEFAULT_STT_PREFIX = "StreamerXY speaks: "
-APP_VERSION = "1.1.3.2"  # Updated version
+APP_VERSION = "1.1.3.3"  # Updated version
 DEFAULT_SAMPLERATE = 16000
 DEFAULT_CHANNELS = 1
 DEFAULT_ENERGY_THRESHOLD = 50
@@ -66,11 +66,11 @@ DEFAULT_FILTER_PATTERNS_STR = [
 
 # --- Default replacements (if file doesn't exist) ---
 DEFAULT_REPLACEMENTS = {
-    # Replace common mishearings/misspellings of "StreamerXY"
+    # Replace common mishearings/misspellings of your "Botname"
     # (?i) = ignore case, \b = word boundary, \s* = any number of whitespace
-    r"(?i)\bStreamer\s*X\s*Y\b": "StreamerXY",      # e.g. Streamer X Y, Streamer XY
-    r"(?i)\bStreamer\s*Ex\s*Why\b": "StreamerXY",   # e.g. Streamer Ex Why
-    r"(?i)\bStreamer\s*ix\s*why\b": "StreamerXY",   # e.g. Streamer ix why
+    r"(?i)\bBotname\s*X\s*Y\b": "BotnameXY",
+    r"(?i)\bBot name\s*Ex\s*Why\b": "BotnameXY",
+    r"(?i)\bBot homee\s*ix\s*why\b": "BotnameXY",
     # Add other common errors here as needed
 }
 

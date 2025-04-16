@@ -4,26 +4,26 @@
 customtkinter>=5.2.0
 sounddevice>=0.4.6
 numpy>=1.20.0
-# Pillow wird normalerweise von customtkinter selbst installiert, falls benötigt.
+# Pillow is usually installed automatically by customtkinter if needed.
 
 # --- Speech-to-Text Engines ---
-openai>=1.0.0          # Für OpenAI Whisper API
-elevenlabs>=1.0.0      # Für ElevenLabs STT API
-soundfile>=0.12.0      # Für Audio-Formatierung (API Input)
+openai>=1.0.0          # For OpenAI Whisper API
+elevenlabs>=1.0.0      # For ElevenLabs STT API
+soundfile>=0.12.0      # For audio formatting (API input)
 
-# --- WebSocket für externe Steuerung / Streamer.bot ---
+# --- WebSocket for external control / Streamer.bot ---
 websockets>=12.0
 
 # --- Encryption ---
 cryptography>=40.0.0
 
-# --- Optional: Lokales Whisper ---
-# Für lokales Whisper zusätzlich installieren (siehe auch Code-Kommentare):
-# 1. ffmpeg (System-Installation: https://ffmpeg.org/download.html)
-# 2. Das Whisper-Paket:
+# --- Optional: Local Whisper ---
+# To use local Whisper, install the following additionally (see code comments as well):
+# 1. ffmpeg (system installation: https://ffmpeg.org/download.html)
+# 2. The Whisper package:
 #    pip install -U openai-whisper
-# 3. Optional für GPU-Nutzung:
-#    PyTorch mit CUDA-Unterstützung (siehe https://pytorch.org/)
+# 3. Optionally for GPU usage:
+#    PyTorch with CUDA support (see https://pytorch.org/)
 
-# --- Optional für Whisper Build (selten nötig) ---
+# --- Optional for Whisper build (rarely needed) ---
 # setuptools-rust
