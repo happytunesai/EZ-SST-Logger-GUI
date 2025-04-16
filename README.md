@@ -161,7 +161,7 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     -   **Context Menu:** Right-click in the transcription area allows:
         -   Copying selected text or all text.
         -   Adding selected text to the appropriate filter list.
-        -   Adding replacement rules (e.g., to automatically insert *Tuneingway*).
+        -   Adding replacement rules (e.g., to automatically insert *BotnameXY*).
         -   Clearing the display.
 
 ### Commands and External Control
