@@ -5,7 +5,7 @@
 
 ---
 
-<img width="426" alt="EZ _SST_Logger_GUI" src="https://github.com/user-attachments/assets/d0be0cd2-516c-4e00-94c4-03130aacbbd9" />
+<img width="639" alt="EZ _SST_Logger_GUI" src="https://github.com/user-attachments/assets/ddad9096-1516-4f16-b40f-a5bafdc38f4f" />
 
 ## Overview
 
