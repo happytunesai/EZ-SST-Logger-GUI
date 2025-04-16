@@ -245,7 +245,7 @@ This project is licensed under the [MIT License](LICENSE). *(Assuming you have a
 ## Contact 👀
 
 For questions, issues, or contribution suggestions, please contact: `ChatGPT`, `Gemini`, `DeepSeek`, `Claude.ai` 🤖
-or try to dump it [here](https://github.com/happytunesai/EZ-SST-Logger-GUI/issues)! ✅
+or try to dump it [here](https://github.com/happytunesai/EZ-STT-Logger-GUI/issues)! ✅
 
 **GitHub:** [github.com/happytunesai/EZ-SST-Logger-GUI](https://github.com/happytunesai/EZ-SST-Logger-GUI)
 
