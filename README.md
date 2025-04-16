@@ -1,6 +1,6 @@
 # EZ STT Logger GUI
 
-**Version:** 1.1.3
+**Version:** 1.1.3.1
 **Status:** Release
 
 ---
