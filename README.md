@@ -120,12 +120,18 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     │   └── fr.json      <-- French language file (New in v1.1.4)
     ├── lib/
     │   ├── __init__.py
+    │   ├── audio_processing.py
+    │   ├── config_manager.py
     │   ├── constants.py
     │   ├── gui.py
+    │   ├── language_manager.py
+    │   ├── logger_setup.py
+    │   ├── text_processing.py
     │   ├── utils.py
-    │   ├── ... (other .py files)
+    │   ├── websocket_utils.py
     ├── logs/
     ├── main.py
+    ├── README.md
     ├── requirements.txt
     └── (optional: logo.ico)
     ```
