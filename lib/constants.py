@@ -4,7 +4,7 @@ Constants for the EZ STT Logger application.
 Paths are relative to the project's main directory (where main.py is located).
 """
 import os
-import logging  # Import logging for level constants
+import logging
 
 # --- Directories ---
 CONFIG_DIR = "config"
@@ -22,28 +22,31 @@ ICON_FILE = "logo.ico"
 DEFAULT_TRANSCRIPTION_FILE = "transcription_log.txt"
 
 # --- Languages ---
-DEFAULT_LANGUAGE = "de"
-SUPPORTED_LANGUAGES = {"de": "Deutsch", "en": "English"}
+DEFAULT_LANGUAGE = "de" # Fallback language code if detection or config fails
+# SUPPORTED_LANGUAGES = {"de": "Deutsch", "en": "English"} # REMOVED - Will be detected dynamically
+# NEU: Keys für Metadaten in Sprachdateien und Referenzsprache
+LANG_META_NAME_KEY = "language_name" # Key for the display name in the JSON
+LANG_META_CODE_KEY = "language_code" # Key for the language code (e.g., "de") in the JSON
+LANG_REFERENCE_CODE = "en" # Language file used as reference for validation (e.g., 'en.json')
 
-# --- Logging --- NEW SECTION ---
-DEFAULT_LOG_LEVEL = "INFO"  # Default level for the console
-LOG_LEVELS = {  # Mapping from string to logging level constant
+# --- Logging ---
+DEFAULT_LOG_LEVEL = "INFO"
+LOG_LEVELS = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,
     "WARNING": logging.WARNING,
     "ERROR": logging.ERROR,
     "CRITICAL": logging.CRITICAL
 }
-# List of level names (strings) for GUI selection
 LOG_LEVEL_NAMES = list(LOG_LEVELS.keys())
 
 # --- Network settings ---
 WEBSOCKET_PORT = 8765
-DEFAULT_STREAMERBOT_WS_URL = "ws://127.0.0.1:1337/"
+DEFAULT_STREAMERBOT_WS_URL = "ws://127.0.0.1:1337/" # User's port from log
 
 # --- Default values & configuration ---
-DEFAULT_STT_PREFIX = "StreamerXY speaks: "
-APP_VERSION = "1.1.3.3"  # Updated version
+DEFAULT_STT_PREFIX = "StreamerXY speaks: " # User's prefix from log
+APP_VERSION = "1.1.4" # Updated version
 DEFAULT_SAMPLERATE = 16000
 DEFAULT_CHANNELS = 1
 DEFAULT_ENERGY_THRESHOLD = 50

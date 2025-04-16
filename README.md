@@ -1,6 +1,6 @@
 # EZ STT Logger GUI
 
-**Version:** 1.1.3.3
+**Version:** 1.1.4
 **Status:** Release
 
 ---
@@ -34,19 +34,26 @@ Thanks to an intuitive interface and extensive configuration options, the applic
     -   Filter rules to clean up unwanted phrases (configurable per mode type).
     -   Dynamic replacement of text fragments for standardization (e.g., automatic spelling correction).
 
--   **Multi-Tab GUI:**
-    -   **Local:** Settings for the local Whisper model.
-    -   **OpenAI API:** Configuration for the OpenAI key.
-    -   **ElevenLabs API:** API key, model ID, and filter options.
-    -   **WebSocket:** Activation of a server for external control (e.g., via Stream Deck, expected command: `TOGGLE_RECORD`).
-    -   **Integration (SB):** Sending transcriptions to Streamer.bot via WebSocket, can be used with [PNGTuber-GPT (v1.2)](https://github.com/happytunesai/PNGTuber-GPT) addon.
-    -   **Language Selection:** Dropdown menu to switch language (e.g., English, German).
-    -   **Log Level Control:** Dropdown menu to set the minimum logging level for console output. 
+-   **Dynamic Language Support & GUI:**
+    -   **Dynamic Language Loading:** The application automatically detects available UI languages by scanning `.json` files in the `language/` directory at startup.
+        -   Each language file requires `"language_name"` (e.g., "Français") and `"language_code"` (e.g., "fr") metadata for detection.
+        -   Valid language files (containing all keys from the reference `en.json`) automatically appear in the language selection dropdown.
+    -   **Easy Language Addition:** Users and contributors can add new UI languages simply by creating a valid `.json` file (e.g., `it.json` for Italian) with the required metadata and all necessary translation keys, placing it in the `language/` folder, and restarting the application.
+    -   **Included Languages:** Comes with English (`en.json`), German (`de.json`), French (`fr.json`), and Spanish (`es.json`).
+    -   **Multi-Tab GUI:**
+        -   **Local:** Settings for the local Whisper model.
+        -   **OpenAI API:** Configuration for the OpenAI key.
+        -   **ElevenLabs API:** API key, model ID, and filter options.
+        -   **WebSocket:** Activation of a server for external control (e.g., via Stream Deck, expected command: `TOGGLE_RECORD`).
+        -   **Integration (SB):** Sending transcriptions to Streamer.bot via WebSocket, can be used with [PNGTuber-GPT (v1.2)](https://github.com/happytunesai/PNGTuber-GPT) addon.
+        -   **Language Selection:** Dropdown menu (top right) dynamically populated with detected languages (e.g., English, Deutsch, Français, Español) to switch the GUI language.
+        -   **Log Level Control:** Dropdown menu (bottom right) to set the minimum logging level for console output.
 
 -   **Security & Configuration:**
     -   Encryption of API keys using [Fernet cryptography](https://cryptography.io/).
     -   Automatic generation and management of an encryption key (`secret.key`).
     -   Configuration file (`config/config.json`) for saving all settings, including UI language and console log level.
+    -   Language files (`language/*.json`) defining UI text.
 
 -   **Logging & Error Handling:**
     -   Comprehensive logging (including rotating log files in the `logs` directory, always logging at DEBUG level).
@@ -82,6 +89,7 @@ The application uses various libraries. Ensure all the following dependencies ar
 Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyncio`, `subprocess`, `os`, and `re` are also required.
 
 > **Installation:**
+> Requires **Python 3.10 or higher**.
 > To install all required packages, use the provided `requirements.txt` file:
 > ```bash
 > pip install -r requirements.txt
@@ -105,9 +113,11 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     EZ-SST-Logger-GUI/
     ├── config/
     ├── filter/
-    ├── language/
-    │   ├── de.json
-    │   └── en.json
+    ├── language/        <-- Folder for language files
+    │   ├── de.json      <-- German language file
+    │   ├── en.json      <-- English language file (Reference)
+    │   ├── es.json      <-- Spanish language file (New in v1.1.4)
+    │   └── fr.json      <-- French language file (New in v1.1.4)
     ├── lib/
     │   ├── __init__.py
     │   ├── constants.py
@@ -125,11 +135,13 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     ```bash
     pip install -r requirements.txt
     ```
+    *Ensure you have Python 3.10 or newer.*
 
 4.  **Configuration and Encryption:**
     -   On the first run, an encryption key will be automatically generated and saved in `config/secret.key`.
         **Important:** Keep this file safe! Without it, API keys cannot be decrypted. Do NOT commit it to Git.
-    -   A default `config/config.json` will be created on the first close or can be adjusted via the GUI. Filter files (`filter/filter_patterns.txt`, etc.), the replacement file (`filter/replacements.json`), and language files will also be created with defaults if they don't exist.
+    -   A default `config/config.json` will be created on the first close or can be adjusted via the GUI. Filter files (`filter/filter_patterns.txt`, etc.), the replacement file (`filter/replacements.json`), and language files (`language/en.json`, `de.json`, `fr.json`, `es.json`) will also be created with defaults if they don't exist.
+    -   **Adding Languages:** To add a new language, place a valid `.json` file (containing `"language_name"`, `"language_code"` metadata and all keys from `en.json`) into the `language/` folder. It will be detected on the next application start.
 
 5.  **Start the Application:**
     ```bash
@@ -149,7 +161,7 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     -   **WebSocket:** Enable the WebSocket server for external control.
     -   **Integration (SB):** Enable sending transcriptions to Streamer.bot (e.g., for use with PNGTuber-GPT actions).
     -   **Common Settings (Below Tabs):** Configure Microphone, STT Language (optional), Output Format, Output File, Buffering/Silence times.
-    -   **Language Selector (Top Right):** Choose the GUI language (e.g., English, Deutsch).
+    -   **Language Selector (Top Right):** Choose the GUI language. Available languages (e.g., English, Deutsch, Français, Español) are detected automatically from the `language/` folder at startup.
     -   **Log Level Selector (Bottom Right):** Choose the minimum log level for console output (DEBUG shows everything, INFO shows INFO and above, etc.).
 
 -   **Recording:**
@@ -176,7 +188,7 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
         -   **Message:** `TOGGLE_RECORD`
     -   Pressing this button on your Stream Deck will now start or stop the recording in the EZ STT Logger GUI.
     - Example configuration:
-      
+
       ![Stream-Deck: Web Requests](https://github.com/user-attachments/assets/f0411000-91a6-4163-acb8-d8fb84a8dea9)
 
 -   **Streamer.bot Integration:**
@@ -195,6 +207,8 @@ The application saves all important settings in the `config/config.json` file. C
 -   Mode, API Keys (encrypted), Microphone, Model selections, STT Language, UI Language, Console Log Level, Output Format/Filepath, Buffering times, WebSocket/SB settings, Prefix text, etc.
 
 Changes to filter and replacement files (`filter/` directory) can be made directly or via the GUI context menu.
+
+Language files (`.json` format) reside in the `language/` directory and control the UI text. New languages can be added by placing correctly formatted files here.
 
 ---
 
@@ -218,7 +232,7 @@ Changes to filter and replacement files (`filter/` directory) can be made direct
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](LICENSE). *(Assuming you have a LICENSE file, otherwise update this)*
 
 ---
 
