@@ -43,7 +43,7 @@ DEFAULT_STREAMERBOT_WS_URL = "ws://127.0.0.1:1337/"
 
 # --- Default values & configuration ---
 DEFAULT_STT_PREFIX = "StreamerXY speaks: "
-APP_VERSION = "1.1.3"  # Updated version
+APP_VERSION = "1.1.3.2"  # Updated version
 DEFAULT_SAMPLERATE = 16000
 DEFAULT_CHANNELS = 1
 DEFAULT_ENERGY_THRESHOLD = 50

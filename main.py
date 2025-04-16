@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Main entry point for the EZ STT Logger application.
-Initializes the necessary components and starts the GUI.
+Initializes the necessary components and starts the GUI. 
 """
 import os
 import sys
