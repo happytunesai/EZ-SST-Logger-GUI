@@ -1,6 +1,6 @@
 # EZ STT Logger GUI
 
-**Version:** 1.1.2
+**Version:** 1.1.3
 **Status:** Release
 
 ---
@@ -247,11 +247,6 @@ If you want to contribute to the development:
 -   **GUI Language:** Tab names currently do not update dynamically when the language is changed due to limitations in the GUI library.
 
 ---
-
-## Language Disclaimer
-
-Please note that while the user interface and most configuration options are available in English, some parts of the code—including logging messages and internal comments—are documented in German. This is due to the original development context. You are welcome to contribute improvements or request translations if needed.
-
 
 ## License
 
