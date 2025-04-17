@@ -669,7 +669,7 @@ class WhisperGUI(ctk.CTk):
         logger.debug(tr("log_gui_updating_ui_texts"))
         self.title(tr("app_title", version=APP_VERSION))
         # Warning about dynamic tab renaming being potentially problematic
-        logger.warning(tr("log_gui_tab_names_update_warning"))
+        # logger.warning(tr("log_gui_tab_names_update_warning"))
 
         # Recreate log level display names map with current language
         self._update_log_level_display_names()
