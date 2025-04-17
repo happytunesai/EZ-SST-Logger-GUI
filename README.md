@@ -47,8 +47,13 @@ It features an intuitive interface, extensive configuration options, dynamic lan
     -   **Modern Layout:** Features a compact and intuitive interface. Main configuration options and controls are grouped below the tabs, maximizing space for the transcription output.
     -   **Separated UI Logic:** UI constants are defined in `lib/gui_layout.py`, and Info tab logic is modularized in `lib/info.py` for better code structure and easier customization.
     -   **Service Status Indicators:** Visual indicators in the right control panel show the status of the WebSocket server and Streamer.bot integration.
-        -   **WebSocket Indicator:** ⚫ Gray = Server disabled/not running; 🟢 Green = Server enabled and listening.
-        -   **Streamer.bot Indicator:** ⚫ Gray = Integration disabled; 🟡 Yellow = Enabled but Not Connected; 🟢 Green = Enabled & Connected.
+        -   **WebSocket Indicator:**
+            -   ⚫ Gray = Server disabled/not running;
+            -   🟢 Green = Server enabled and listening.
+        -   **Streamer.bot Indicator:**
+            -   ⚫ Gray = Integration disabled;
+            -   🟡 Yellow = Enabled but Not Connected;
+            -   🟢 Green = Enabled & Connected.
     -   **Dynamic Language Loading:** Automatically detects available UI languages from `.json` files in the `language/` directory.
         -   Language files require `"language_name"` and `"language_code"` metadata.
         -   Valid files appear in the language selection dropdown.
@@ -167,7 +172,10 @@ The application uses various libraries. Ensure all dependencies listed in `requi
 -   **Recording:**
     -   Select a microphone.
     -   Navigate to a recording configuration tab (e.g., Local).
-    -   Start/Stop via the button (active on relevant tabs) or WebSocket command. The light next to the button indicates recording status. [not recording : ⚫] [recording : 🔴]
+    -   Start/Stop via the button (active on relevant tabs) or WebSocket command. The light next to the button indicates recording status.
+      
+        -  ⚫ Gray =  not recording
+        -  🔴 Red = recording
 
 -   **Update Check (Info Tab):**
     -   Click "Check for Updates".
