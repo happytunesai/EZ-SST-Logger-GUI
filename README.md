@@ -1,11 +1,10 @@
 # EZ STT Logger GUI
 
-**Version:** 1.1.4
+**Version:** 1.1.5
 **Status:** Release
-
 ---
 
-<img width="639" alt="EZ _SST_Logger_GUI" src="https://github.com/user-attachments/assets/f4952b0a-10aa-49fe-b412-db942b653b2c" />
+<img width="676" alt="EZ_SST_Logger_GUI_v1.1.5" src="https://github.com/user-attachments/assets/b0748887-594d-46a0-89e9-5fb61eeba480" />
 
 ## Overview
 
@@ -14,7 +13,7 @@ The **EZ STT Logger GUI** is a versatile graphical application for real-time spe
 
 It was created to provide enhanced STT features for Streamer.bot, often complementing **PNGTuber-GPT** addon setups (like the extended version by [happytunesai](https://github.com/happytunesai/PNGTuber-GPT), based on the original by [RapidRabbit-11485](https://github.com/RapidRabbit-11485/PNGTuber-GPT)).
 
-Thanks to an intuitive interface and extensive configuration options, the application can be flexibly adapted to individual needs.
+This version features a significant UI overhaul for improved clarity, compactness, and usability, separates layout constants for easier customization, and includes important bug fixes.
 
 ---
 
@@ -34,7 +33,12 @@ Thanks to an intuitive interface and extensive configuration options, the applic
     -   Filter rules to clean up unwanted phrases (configurable per mode type).
     -   Dynamic replacement of text fragments for standardization (e.g., automatic spelling correction).
 
--   **Dynamic Language Support & GUI:**
+-   **Refined GUI & Dynamic Language Support:**
+    -   **Updated Layout:** Reworked interface for a more compact and intuitive feel. Main configuration options and controls are grouped below the tabs, maximizing space for the transcription output.
+    -   **Separated Layout Constants:** Basic UI values like fonts, colors, and sizes are now defined in `lib/gui_layout.py`, allowing easier visual customization without modifying the core `gui.py` logic.
+    -   **Service Status Indicators:** Visual indicators added to the right control panel show the status of the WebSocket server and Streamer.bot integration.
+        -   **WebSocket Indicator:** Gray = Server disabled/not running; Green = Server enabled and listening for `TOGGLE_RECORD` command.
+        -   **Streamer.bot Indicator:** Gray = Integration disabled; Yellow = Integration enabled but not connected to Streamer.bot; Green = Integration enabled and connected.
     -   **Dynamic Language Loading:** The application automatically detects available UI languages by scanning `.json` files in the `language/` directory at startup.
         -   Each language file requires `"language_name"` (e.g., "Français") and `"language_code"` (e.g., "fr") metadata for detection.
         -   Valid language files (containing all keys from the reference `en.json`) automatically appear in the language selection dropdown.
@@ -44,21 +48,22 @@ Thanks to an intuitive interface and extensive configuration options, the applic
         -   **Local:** Settings for the local Whisper model.
         -   **OpenAI API:** Configuration for the OpenAI key.
         -   **ElevenLabs API:** API key, model ID, and filter options.
-        -   **WebSocket:** Activation of a server for external control (e.g., via Stream Deck, expected command: `TOGGLE_RECORD`).
-        -   **Integration (SB):** Sending transcriptions to Streamer.bot via WebSocket, can be used with [PNGTuber-GPT (v1.2)](https://github.com/happytunesai/PNGTuber-GPT) addon.
-        -   **Language Selection:** Dropdown menu (top right) dynamically populated with detected languages (e.g., English, Deutsch, Français, Español) to switch the GUI language.
+        -   **WebSocket:** Activation of a server for external control.
+        -   **Integration (SB):** Sending transcriptions to Streamer.bot via WebSocket.
+        -   **Language Selection:** Dropdown menu (bottom right) dynamically populated with detected languages (e.g., English, Deutsch, Français, Español) to switch the GUI language. Tab titles now update correctly upon language change.
         -   **Log Level Control:** Dropdown menu (bottom right) to set the minimum logging level for console output.
+    -   **Enhanced Visuals:** Uses the "Montserrat" font and bold headings for better readability.
 
 -   **Security & Configuration:**
     -   Encryption of API keys using [Fernet cryptography](https://cryptography.io/).
     -   Automatic generation and management of an encryption key (`secret.key`).
-    -   Configuration file (`config/config.json`) for saving all settings, including UI language and console log level.
+    -   Configuration file (`config/config.json`) for saving all settings, including UI language and console log level. Settings are now saved automatically when changing language to prevent data loss.
     -   Language files (`language/*.json`) defining UI text.
 
 -   **Logging & Error Handling:**
     -   Comprehensive logging (including rotating log files in the `logs` directory, always logging at DEBUG level).
     -   Status and error messages are displayed in the GUI (translated) and logs (fixed language).
-    -   **Console Log Level:** The GUI allows selecting the *minimum* level for messages shown in the console (DEBUG, INFO, WARNING, ERROR, CRITICAL). Selecting a level (e.g., INFO) will show messages of that level *and all higher levels* (INFO, WARNING, ERROR, CRITICAL). It does not filter for only one specific level.
+    -   **Console Log Level:** The GUI allows selecting the *minimum* level for messages shown in the console (DEBUG, INFO, WARNING, ERROR, CRITICAL).
 
 -   **Interactive Elements:**
     -   Context menu in the transcription window for copying text and adding filter/replacement rules.
@@ -73,6 +78,7 @@ The application uses various libraries. Ensure all the following dependencies ar
 -   **GUI & File Dialogs:**
     -   [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) (`customtkinter`)
     -   `tkinter` (usually included with Python)
+    -   *(Uses the Montserrat font for UI text.)*
 -   **Audio & Signal Processing:**
     -   `sounddevice`
     -   `numpy`
@@ -116,19 +122,20 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     ├── language/        <-- Folder for language files
     │   ├── de.json      <-- German language file
     │   ├── en.json      <-- English language file (Reference)
-    │   ├── es.json      <-- Spanish language file (New in v1.1.4)
-    │   └── fr.json      <-- French language file (New in v1.1.4)
-    ├── lib/
+    │   ├── es.json      <-- Spanish language file
+    │   └── fr.json      <-- French language file
+    ├── lib/             <-- Core library files
     │   ├── __init__.py
     │   ├── audio_processing.py
     │   ├── config_manager.py
     │   ├── constants.py
     │   ├── gui.py
+    │   ├── gui_layout.py  <-- UI layout constants
     │   ├── language_manager.py
     │   ├── logger_setup.py
     │   ├── text_processing.py
     │   ├── utils.py
-    │   ├── websocket_utils.py
+    │   └── websocket_utils.py
     ├── logs/
     ├── main.py
     ├── README.md
@@ -165,15 +172,24 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     -   **OpenAI API:** Enter your OpenAI API key.
     -   **ElevenLabs API:** Configure your ElevenLabs API key and Model ID. Option to filter content in parentheses/brackets.
     -   **WebSocket:** Enable the WebSocket server for external control.
-    -   **Integration (SB):** Enable sending transcriptions to Streamer.bot (e.g., for use with PNGTuber-GPT actions).
+    -   **Integration (SB):** Enable sending transcriptions to Streamer.bot.
     -   **Common Settings (Below Tabs):** Configure Microphone, STT Language (optional), Output Format, Output File, Buffering/Silence times.
-    -   **Language Selector (Top Right):** Choose the GUI language. Available languages (e.g., English, Deutsch, Français, Español) are detected automatically from the `language/` folder at startup.
-    -   **Log Level Selector (Bottom Right):** Choose the minimum log level for console output (DEBUG shows everything, INFO shows INFO and above, etc.).
+    -   **Control Panel (Right Side):**
+        -   **Service Indicators:**
+            -   **WebSocket:** Shows WebSocket server status. Gray = Server Disabled, Green = Server Enabled & Listening.
+            -   **Integration (SB):** Shows Streamer.bot connection status. Gray = Integration Disabled, Yellow = Enabled but Not Connected, Green = Enabled & Connected.
+        -   Reload Microphone List button.
+        -   Start/Stop Recording button.
+        -   Edit Filters / Edit Replacements buttons.
+    -   **Status Bar (Bottom):**
+        -   **Status Messages:** Displays current status and errors on the left.
+        -   **Language Selector:** Choose the GUI language on the right.
+        -   **Log Level Selector:** Choose the minimum console log level on the right.
 
 -   **Recording:**
     -   Select your preferred microphone from the dropdown menu (use "Reload" if needed).
     -   Set language, output format, and output file path.
-    -   Start/Stop recording using the **"Start/Stop Recording"** button or via WebSocket command (`TOGGLE_RECORD`). The button is disabled on WebSocket/Integration tabs, but WebSocket control still works. The indicator light always shows the current recording status.
+    -   Start/Stop recording using the **"Start/Stop Recording"** button or via WebSocket command (`TOGGLE_RECORD`). The indicator light next to the button shows the current recording status (active/inactive).
 
 -   **Interactive Features:**
     -   **Context Menu:** Right-click in the transcription area allows:
@@ -185,22 +201,16 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
 ### Commands and External Control
 
 -   **WebSocket Control (e.g., via Stream Deck):**
-    -   Ensure the WebSocket server is enabled in the GUI (WebSocket Tab) and the application is running.
-    -   To control recording via a Stream Deck, you can use the **"Web Requests"** plugin by Elgato ([Marketplace Link](https://marketplace.elgato.com/product/web-requests-d7d46868-f9c8-4fa5-b775-ab3b9a7c8add)).
-    -   Configure a Stream Deck button with the following settings within the "Web Requests" plugin:
-        -   **Request Type / Method:** `WebSocket Message`
-        -   **Title:** Anything you like (e.g., "Toggle STT Rec")
-        -   **URL:** The WebSocket server address shown in the GUI (Default: `ws://localhost:8765`)
-        -   **Message:** `TOGGLE_RECORD`
-    -   Pressing this button on your Stream Deck will now start or stop the recording in the EZ STT Logger GUI.
+    -   Ensure the WebSocket server is enabled in the GUI (WebSocket Tab) and the application is running (check the 'WebSocket' indicator in the right panel is Green).
+    -   Use a tool like the Elgato Stream Deck "Web Requests" plugin to send a `WebSocket Message` with the content `TOGGLE_RECORD` to the server URL (Default: `ws://localhost:8765`).
     - Example configuration:
 
       ![Stream-Deck: Web Requests](https://github.com/user-attachments/assets/f0411000-91a6-4163-acb8-d8fb84a8dea9)
 
 -   **Streamer.bot Integration:**
-    -   Enable sending transcriptions to Streamer.bot under the "Integration (SB)" tab and configure the correct Streamer.bot WebSocket URL.
-    -   The application will send transcriptions as JSON messages in the format: `{"source": "stt", "text": "PREFIX + transcribed text"}`.
-    -   Your Streamer.bot instance needs corresponding actions set up to listen for WebSocket client messages and process this JSON payload (e.g., using the `websocketClientReceive` trigger and actions available in extended PNGTuber-GPT versions).
+    -   Enable sending transcriptions under the "Integration (SB)" tab and configure the correct Streamer.bot WebSocket URL (check the 'Integration (SB)' indicator is Green or Yellow - Yellow means it's trying to connect).
+    -   The application sends transcriptions as JSON: `{"source": "stt", "text": "PREFIX + transcribed text"}`.
+    -   Set up Streamer.bot actions to listen for WebSocket client messages and process this payload.
 
     Link: [https://github.com/happytunesai/PNGTuber-GPT](https://github.com/happytunesai/PNGTuber-GPT)
 
@@ -215,6 +225,8 @@ The application saves all important settings in the `config/config.json` file. C
 Changes to filter and replacement files (`filter/` directory) can be made directly or via the GUI context menu.
 
 Language files (`.json` format) reside in the `language/` directory and control the UI text. New languages can be added by placing correctly formatted files here.
+
+For minor visual adjustments (fonts, colors, padding), constants are defined in `lib/gui_layout.py`, potentially allowing customization without editing the main GUI logic in `lib/gui.py`.
 
 ---
 
@@ -232,7 +244,7 @@ Language files (`.json` format) reside in the `language/` directory and control 
 -   **Extended API Integration:** Support for additional speech recognition services.
 -   **Error Handling:** Improvement of error messages and user guidance for API/connection problems.
 -   **Streamer.bot Client Robustness:** Improve reconnection logic and error handling for the Streamer.bot client.
--   **GUI Language:** Tab names currently do not update dynamically when the language is changed due to limitations in the GUI library.
+-   **Indicator Detail:** Enhance indicators to show more states (e.g., connecting error state for SB).
 
 ---
 
