@@ -107,7 +107,7 @@ The application uses various libraries. Ensure all dependencies listed in `requi
     git clone [https://github.com/happytunesai/EZ-SST-Logger-GUI.git](https://github.com/happytunesai/EZ-SST-Logger-GUI.git)
     cd EZ-SST-Logger-GUI
     ```
-    Or download and extract the project files.
+    Or [download](https://github.com/happytunesai/EZ-STT-Logger-GUI/releases) and extract the [latest Release](https://github.com/happytunesai/EZ-STT-Logger-GUI/releases/latest).
 
 2.  **Verify Directory Structure:**
     Ensure you have the main script and the `lib` folder containing the core modules:
