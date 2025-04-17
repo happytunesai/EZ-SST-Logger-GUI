@@ -35,6 +35,7 @@ async def websocket_handler(websocket, gui_q):
                 if command == "TOGGLE_RECORD":
                     logger.info(tr("log_ws_command_toggle"))
                     gui_q.put(("toggle_recording_external", None))
+                    gui_q.put(("ws_state", "connected"))
                     await websocket.send("OK: TOGGLE_RECORD received and forwarded.")
                 elif command == "PING":
                     await websocket.send("PONG")
@@ -68,6 +69,7 @@ async def run_websocket_server(stop_event, port, gui_q):
         server_instance = await websockets.serve(handler, host, port)
         logger.info(tr("log_ws_server_started", host=host, port=port))
         gui_q.put(("status", tr("status_ws_server_running", port=port)))
+        gui_q.put(("ws_state", "connected"))
         await stop_event.wait()
         logger.info(tr("log_ws_server_stopping"))
     except OSError as e:
@@ -87,6 +89,8 @@ async def run_websocket_server(stop_event, port, gui_q):
             logger.info(tr("log_ws_server_closed"))
         logger.info(tr("log_ws_server_task_ended"))
         gui_q.put(("status", tr("status_ws_server_stopped")))
+        gui_q.put(("ws_state", "disabled"))
+
 
 
 def start_websocket_server_thread(port, gui_q):
@@ -151,8 +155,10 @@ async def streamerbot_websocket_client(websocket_url, sb_queue, stop_event, gui_
         websocket = None
         try:
             logger.info(tr("log_sb_connecting", url=websocket_url))
+            gui_q.put(("sb_state", "connecting"))
             websocket = await asyncio.wait_for(websockets.connect(websocket_url), timeout=10.0)
             logger.info(tr("log_sb_connected", url=websocket_url))
+            gui_q.put(("sb_state", "connected"))
             gui_q.put(("status", tr("status_sb_client_connected")))
 
             while not stop_event.is_set():
@@ -224,6 +230,7 @@ async def streamerbot_websocket_client(websocket_url, sb_queue, stop_event, gui_
                 break
 
     logger.info(tr("log_sb_task_ended"))
+    gui_q.put(("sb_state", "disabled"))
     gui_q.put(("status", tr("status_sb_client_stopped")))
 
 

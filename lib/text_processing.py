@@ -9,7 +9,7 @@ import json
 # Import constants and logger
 from lib.constants import (
     FILTER_FILE, FILTER_FILE_EL, REPLACEMENTS_FILE,
-    DEFAULT_FILTER_PATTERNS_STR, DEFAULT_REPLACEMENTS
+    DEFAULT_FILTER_PATTERNS_STR,DEFAULT_FILTER_PATTERNS_EL, DEFAULT_REPLACEMENTS
 )
 from lib.logger_setup import logger
 from lib.language_manager import tr
@@ -23,8 +23,7 @@ def load_filter_patterns(filter_path):
     if filter_path == FILTER_FILE:
         defaults_to_write = DEFAULT_FILTER_PATTERNS_STR
     elif filter_path == FILTER_FILE_EL:
-        # Currently no specific default filters for ElevenLabs
-        defaults_to_write = []
+        defaults_to_write = DEFAULT_FILTER_PATTERNS_EL
 
     # Create the file with defaults if it doesn't exist
     if not os.path.exists(filter_path):
