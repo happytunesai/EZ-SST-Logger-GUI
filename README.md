@@ -137,7 +137,7 @@ The application uses various libraries. Ensure all dependencies listed in `requi
     ├── main.py
     ├── README.md
     ├── requirements.txt
-    └── (optional: logo.ico)
+    └── logo.ico
     ```
     *(Folders like `config`, `filter`, `logs`, `language` are created automatically on first run if missing)*.
 
