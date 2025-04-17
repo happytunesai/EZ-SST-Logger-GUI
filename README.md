@@ -167,7 +167,7 @@ The application uses various libraries. Ensure all dependencies listed in `requi
 -   **Recording:**
     -   Select a microphone.
     -   Navigate to a recording configuration tab (e.g., Local).
-    -   Start/Stop via the button (active on relevant tabs) or WebSocket command. The light next to the button indicates recording status.
+    -   Start/Stop via the button (active on relevant tabs) or WebSocket command. The light next to the button indicates recording status. [not recording : ⚫] [recording : 🔴]
 
 -   **Update Check (Info Tab):**
     -   Click "Check for Updates".
