@@ -22,9 +22,7 @@ ICON_FILE = "logo.ico"
 DEFAULT_TRANSCRIPTION_FILE = "transcription_log.txt"
 
 # --- Languages ---
-DEFAULT_LANGUAGE = "de" # Fallback language code if detection or config fails
-# SUPPORTED_LANGUAGES = {"de": "Deutsch", "en": "English"} # REMOVED - Will be detected dynamically
-# NEU: Keys für Metadaten in Sprachdateien und Referenzsprache
+DEFAULT_LANGUAGE = "en" # Fallback language code if detection or config fails
 LANG_META_NAME_KEY = "language_name" # Key for the display name in the JSON
 LANG_META_CODE_KEY = "language_code" # Key for the language code (e.g., "de") in the JSON
 LANG_REFERENCE_CODE = "en" # Language file used as reference for validation (e.g., 'en.json')
