@@ -19,6 +19,7 @@ import time
 import logging
 # Import layout constants AND FONT DEFINITIONS
 from . import gui_layout
+from . import info
 
 
 # Import local modules/objects
@@ -44,6 +45,7 @@ try:
     from lib.config_manager import save_config
     # Import language functions (tr is the main one used here)
     from lib.language_manager import tr, set_current_language, load_language
+    from lib.constants import APP_VERSION 
 except ImportError as e:
     print(f"Fatal Error: Could not import necessary libraries. Please ensure 'lib' directory is accessible. Details: {e}")
     # Attempt basic logging if logger failed
@@ -120,7 +122,8 @@ class WhisperGUI(ctk.CTk):
         """Creates mappings between tab names and mode strings."""
         self._initial_tab_keys_to_mode_map = {
             "tab_local": "local", "tab_openai": "openai", "tab_elevenlabs": "elevenlabs",
-            "tab_websocket": "websocket", "tab_integration": "integration"
+            "tab_websocket": "websocket", "tab_integration": "integration",
+            "tab_info": "info"
         }
         self._initial_tab_name_to_mode_map = {
             tr(key): mode for key, mode in self._initial_tab_keys_to_mode_map.items()
@@ -207,6 +210,7 @@ class WhisperGUI(ctk.CTk):
         self.tab_elevenlabs_ref = self.tab_view.add(tr("tab_elevenlabs"))
         self.tab_websocket_ref = self.tab_view.add(tr("tab_websocket"))
         self.tab_integration_ref = self.tab_view.add(tr("tab_integration"))
+        self.tab_info_ref = self.tab_view.add(tr("tab_info"))
 
         # --- Create content within tabs ---
         # Local Tab
@@ -279,7 +283,13 @@ class WhisperGUI(ctk.CTk):
         self.stt_prefix_entry = ctk.CTkEntry(self.tab_integration_ref, width=400, font=gui_layout.FONT_NORMAL) # Normal font
         self.stt_prefix_entry.insert(0, self.config.get("stt_prefix", DEFAULT_STT_PREFIX))
         self.stt_prefix_entry.grid(row=3, column=1, columnspan=2, padx=5, pady=(2,5), sticky="w")
-
+        
+        # Info Tab
+        try:
+            info.create_info_tab(self.tab_info_ref, self)
+            logger.debug(tr("log_gui_info_tab_created"))
+        except Exception as e:
+            logger.error(tr("log_gui_info_tab_create_error", error=e), exc_info=True)
     def _set_initial_tab(self):
         """Sets the initially selected tab based on configuration."""
         initial_mode = self.config.get("mode", "local")
@@ -1147,11 +1157,11 @@ class WhisperGUI(ctk.CTk):
             self.after(0, update_gui)
 
         except Exception as e:
-             logger.exception(tr("log_gui_mic_thread_error"))
-             # Schedule error updates in the main thread
-             self.after(0, lambda: self._update_status("status_mics_error", level="error", is_key=True))
-             # Use lambda to ensure tr() is called in main thread context if possible
-             self.after(0, lambda: self.mic_combobox.configure(values=[tr("combobox_mic_error")], state="disabled"))
+            logger.exception(tr("log_gui_mic_thread_error"))
+            # Schedule error updates in the main thread
+            self.after(0, lambda: self._update_status("status_mics_error", level="error", is_key=True))
+            # Use lambda to ensure tr() is called in main thread context if possible
+            self.after(0, lambda: self.mic_combobox.configure(values=[tr("combobox_mic_error")], state="disabled"))
 
 
     def _check_record_button_state(self):
@@ -1162,7 +1172,7 @@ class WhisperGUI(ctk.CTk):
             current_mode = self._tab_name_to_mode_safe(current_tab_name)
 
             # Determine if button should be disabled based on mode
-            is_mode_disabling_button = current_mode in ["websocket", "integration"]
+            is_mode_disabling_button = current_mode in ["websocket", "integration", "info"]
 
             if self.is_recording:
                 self.indicator_light.configure(fg_color="red") # Recording indicator ON
