@@ -120,12 +120,18 @@ Standard modules like `logging`, `json`, `datetime`, `queue`, `threading`, `asyn
     │   └── fr.json      <-- French language file (New in v1.1.4)
     ├── lib/
     │   ├── __init__.py
+    │   ├── audio_processing.py
+    │   ├── config_manager.py
     │   ├── constants.py
     │   ├── gui.py
+    │   ├── language_manager.py
+    │   ├── logger_setup.py
+    │   ├── text_processing.py
     │   ├── utils.py
-    │   ├── ... (other .py files)
+    │   ├── websocket_utils.py
     ├── logs/
     ├── main.py
+    ├── README.md
     ├── requirements.txt
     └── (optional: logo.ico)
     ```
@@ -232,14 +238,13 @@ Language files (`.json` format) reside in the `language/` directory and control 
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). *(Assuming you have a LICENSE file, otherwise update this)*
-
+-   This project is licensed under the [MIT License](LICENSE).
 ---
 
 ## Contact 👀
 
 For questions, issues, or contribution suggestions, please contact: `ChatGPT`, `Gemini`, `DeepSeek`, `Claude.ai` 🤖
-or try to dump it [here](https://github.com/happytunesai/EZ-SST-Logger-GUI/issues)! ✅
+or try to dump it [here](https://github.com/happytunesai/EZ-STT-Logger-GUI/issues)! ✅
 
 **GitHub:** [github.com/happytunesai/EZ-SST-Logger-GUI](https://github.com/happytunesai/EZ-SST-Logger-GUI)
 
