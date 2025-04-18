@@ -63,14 +63,14 @@ Choose the method that best suits you:
 **Option 1: Using the Executable (Recommended for most users)**
 
 1.  **Download:** Go to the [**GitHub Releases page**](https://github.com/happytunesai/EZ-STT-Logger-GUI/releases/latest) and download the file named `EZ_STT_Logger_GUI.zip` for the latest version.
-2.  **Extract:** Extract the downloaded `EZ_SST_Logger_GUI.zip` file. This will create a folder named `EZ_SST_Logger_GUI`.
-3.  **Place:** Move this extracted `EZ_SST_Logger_GUI` folder to a location of your choice on your computer (e.g., your Desktop or `C:\Tools\`).
+2.  **Extract:** Extract the downloaded `EZ_STT_Logger_GUI.zip` file. This will create a folder named `EZ_STT_Logger_GUI`.
+3.  **Place:** Move this extracted `EZ_STT_Logger_GUI` folder to a location of your choice on your computer (e.g., your Desktop or `C:\Tools\`).
 4.  **FFmpeg (For Local Whisper Only):** If you plan to use the **Local Whisper** mode:
     * Download FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html) (usually a "release build" zip file).
     * Extract the zip file to a permanent location (e.g., `C:\ffmpeg`).
     * Add the `bin` folder inside the extracted FFmpeg folder (e.g., `C:\ffmpeg\bin`) to your Windows System `PATH` environment variable. (Search Windows for "Edit environment variables for your account"). **Restart your PC** after changing the PATH for it to take effect system-wide.
-5.  **Run:** Open the `EZ_SST_Logger_GUI` folder you extracted and placed in Step 3, then double-click the `EZ_SST_Logger_GUI.exe` file inside it to start the application.
-6.  **First Run:** On the first run (or when needed), the application will automatically create necessary folders like `config`, `filter`, `logs`, and `language` **inside the `EZ_SST_Logger_GUI` folder where the `.exe` file is located**. A `config/secret.key` for encryption will also be generated in the `config` folder if it doesn't exist.
+5.  **Run:** Open the `EZ_STT_Logger_GUI` folder you extracted and placed in Step 3, then double-click the `EZ_STT_Logger_GUI.exe` file inside it to start the application.
+6.  **First Run:** On the first run (or when needed), the application will automatically create necessary folders like `config`, `filter`, `logs`, and `language` **inside the `EZ_STT_Logger_GUI` folder where the `.exe` file is located**. A `config/secret.key` for encryption will also be generated in the `config` folder if it doesn't exist.
 
 **Option 2: Running from Source (For development or customization)**
 
@@ -102,7 +102,7 @@ Choose the method that best suits you:
 8.  **Verify Directory Structure:**
     Ensure you have the main script and the `lib` folder containing the core modules:
     ```
-    EZ-SST-Logger-GUI/
+    EZ-STT-Logger-GUI/
     ├── config/
     ├── filter/
     ├── language/
@@ -218,9 +218,9 @@ This project is licensed under the [MIT License](LICENSE). *(Assuming you have a
 ## Contact 👀
 
 For questions, issues, or contribution suggestions, please contact: `ChatGPT`, `Gemini`, `DeepSeek`, `Claude.ai` 🤖
-or try to dump it [here](https://github.com/happytunesai/EZ-SST-Logger-GUI/issues)! ✅
+or try to dump it [here](https://github.com/happytunesai/EZ-STT-Logger-GUI/issues)! ✅
 
-**GitHub:** [github.com/happytunesai/EZ-SST-Logger-GUI](https://github.com/happytunesai/EZ-SST-Logger-GUI)
+**GitHub:** [github.com/happytunesai/EZ-STT-Logger-GUI](https://github.com/happytunesai/EZ-STT-Logger-GUI)
 
 ---
 
