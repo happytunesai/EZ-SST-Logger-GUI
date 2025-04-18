@@ -111,13 +111,7 @@ Choose the method that best suits you:
 * **Control Panel (Right):** Service Indicators (WS, SB), Reload Mics, Start/Stop Rec, Edit Filters/Replacements.
 * **Info Tab:** Version, links, update check.
 * **Status Bar (Bottom):** Status messages, UI Language, Console Log Level.
-
-*(Rest of Usage section can remain similar to before, maybe update screenshots if desired)*
-
----
-
-*(Configuration, Example Command Line Usage, Known Issues, License, Contact sections can remain largely the same, just ensure version numbers mentioned match 1.1.7)*
-
+  
 ---
 
 *Created with ❤️ + AI*
