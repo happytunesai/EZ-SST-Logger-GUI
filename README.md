@@ -13,7 +13,7 @@ The **EZ STT Logger GUI** is a versatile graphical application for real-time spe
 
 The app supports multiple modes – from local Whisper models and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options.
 
-It was created to provide enhanced STT features for Streamer.bot, often complementing **PNGTuber-GPT** addon setups (like the extended version by [happytunesai](https://github.com/happytunesai/PNGTuber-GPT), based on the original by [RapidRabbit-11485](https://github.com/RapidRabbit-11485/PNGTuber-GPT)).
+It was created to provide enhanced STT features for Streamer.bot, often complementing **PNGTuber-GPT** addon setups (like the extended version by [happytunesai](https://github.com/happytunesai/PNGTuber-GPT-WS), based on the original by [RapidRabbit-11485](https://github.com/RapidRabbit-11485/PNGTuber-GPT)).
 
 It features an intuitive interface, extensive configuration options, dynamic language support, and an integrated update checker.
 
@@ -175,7 +175,7 @@ Choose the method that best suits you:
     -   The application will send transcriptions as JSON messages in the format: `{"source": "stt", "text": "PREFIX + transcribed text"}`.
     -   Your Streamer.bot instance needs corresponding actions set up to listen for WebSocket client messages and process this JSON payload (e.g., using the `websocketClientReceive` trigger and actions available in extended PNGTuber-GPT versions).
 
-    Link: [https://github.com/happytunesai/PNGTuber-GPT](https://github.com/happytunesai/PNGTuber-GPT)
+    Link: [https://github.com/happytunesai/PNGTuber-GPT](https://github.com/happytunesai/PNGTuber-GPT-WS)
 
 ---
 
