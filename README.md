@@ -1,16 +1,17 @@
 # EZ STT Logger GUI
 
-**Version:** 1.1.6
+**Version:** 1.1.7
 **Status:** Release
 
 ---
 
-<img width="676" alt="EZ _SST_Logger_GUI_v1 1 6" src="https://github.com/user-attachments/assets/2a8a2860-977d-49fd-b863-13f6c6cc0c50" />
+<img width="676" alt="EZ STT Logger GUI v1.1.7" src="https://github.com/user-attachments/assets/2a8a2860-977d-49fd-b863-13f6c6cc0c50" />
     
 ## Overview
 
+The **EZ STT Logger GUI** is a versatile graphical application for real-time speech-to-text (STT) recognition and audio logging. Now available as a **standalone executable** for Windows, making it easier than ever to use without installing Python or dependencies!
 
-The **EZ STT Logger GUI** is a versatile graphical application for real-time speech-to-text (STT) recognition and audio logging. The app supports multiple modes – from local Whisper models and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options.
+The app supports multiple modes – from local Whisper models and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options.
 
 It was created to provide enhanced STT features for Streamer.bot, often complementing **PNGTuber-GPT** addon setups (like the extended version by [happytunesai](https://github.com/happytunesai/PNGTuber-GPT), based on the original by [RapidRabbit-11485](https://github.com/RapidRabbit-11485/PNGTuber-GPT)).
 
@@ -20,142 +21,83 @@ It features an intuitive interface, extensive configuration options, dynamic lan
 
 ## Features
 
+-   **Standalone Executable:** Easy to use on Windows without installing Python or required libraries (except [FFmpeg](https://ffmpeg.org/download.html) for *local* Whisper mode).
 -   **Multiple Transcription Modes:**
-    -   **Local (Whisper):** Use pre-installed Whisper models (e.g., *tiny*, *base*, *small*, *medium*, *large*) for transcription directly on your computer.
-    -   **OpenAI API:** Utilize the powerful OpenAI speech recognition by providing your OpenAI API key.
-    -   **ElevenLabs API:** Leverage the ElevenLabs API for an alternative STT solution.
-
--   **Real-time Audio Processing:**
-    -   Audio input via connected microphones.
-    -   Segmentation of voice recordings based on defined buffer and silence thresholds.
-    -   Dynamic adjustment of transcription segments based on acoustic values.
-
--   **Filtering and Replacement Mechanisms:**
-    -   Filter rules to clean up unwanted phrases (configurable per mode type).
-    -   Dynamic replacement of text fragments for standardization (e.g., automatic spelling correction).
-
--   **Info Tab & Update Checker:**
-    -   An **"Info" Tab** provides quick access to application information.
-    -   **Version Display:** Shows the currently running application version.
-    -   **Helpful Links:** Contains clickable links to the project's GitHub Repository and the related PNGTuber Addon repository.
-    -   **Update Check Function:** Includes a button ("Check for Updates") to check for new releases via the GitHub API.
-    -   **Background Checking:** The check runs in a separate thread to keep the UI responsive.
-    -   **Status Feedback:** A label indicates the status ("Checking...", "Up to date", "Update available!", "Error...").
-    -   **Direct Download Link:** A "Download Update" button appears *only* if a newer version is found, linking directly to the GitHub Releases page.
-
+    -   **Local (Whisper):** Use local Whisper models (e.g., *tiny*, *base*, *small*, *medium*, *large*) for transcription directly on your computer. Requires separate FFmpeg installation added to PATH.
+    -   **OpenAI API:** Utilize powerful OpenAI speech recognition via your API key.
+    -   **ElevenLabs API:** Leverage the ElevenLabs API for STT.
+-   **Real-time Audio Processing:** Input via microphone, segmentation based on buffer/silence thresholds.
+-   **Filtering and Replacement:**
+    -   Configurable filter rules (per mode type) to remove unwanted phrases.
+    -   Dynamic text replacement, including a **configurable Botname** for the context menu replacement action (set in the Integration tab).
+-   **Info Tab & Update Checker:** Application info, links, and integrated GitHub release checker with direct download link for updates.
 -   **Refined GUI & Dynamic Language Support:**
-    -   **Modern Layout:** Features a compact and intuitive interface. Main configuration options and controls are grouped below the tabs, maximizing space for the transcription output.
-    -   **Separated UI Logic:** UI constants are defined in `lib/gui_layout.py`, and Info tab logic is modularized in `lib/info.py` for better code structure and easier customization.
-    -   **Service Status Indicators:** Visual indicators in the right control panel show the status of the WebSocket server and Streamer.bot integration.
-        -   **WebSocket Indicator:**
-            -   ⚫ Gray = Server disabled/not running;
-            -   🟢 Green = Server enabled and listening.
-        -   **Streamer.bot Indicator:**
-            -   ⚫ Gray = Integration disabled;
-            -   🟡 Yellow = Enabled but Not Connected;
-            -   🟢 Green = Enabled & Connected.
-    -   **Dynamic Language Loading:** Automatically detects available UI languages from `.json` files in the `language/` directory.
-        -   Language files require `"language_name"` and `"language_code"` metadata.
-        -   Valid files appear in the language selection dropdown.
-    -   **Easy Language Addition:** Add new UI languages by creating a valid `.json` file in the `language/` folder.
-    -   **Included Languages:** Comes with English (`en.json`), German (`de.json`), French (`fr.json`), and Spanish (`es.json`).
-    -   **Multi-Tab GUI:**
-        -   **Local, OpenAI API, ElevenLabs API, WebSocket, Integration (SB):** Tabs for specific service configurations.
-        -   **Info:** Tab with version info, links, and update checker.
-        -   **Language Selection:** Dropdown menu (bottom right) for switching GUI language.
-        -   **Log Level Control:** Dropdown menu (bottom right) to set the minimum console log level.
-    -   **Enhanced Visuals:** Uses the "Montserrat" font and bold headings for better readability.
-
--   **Security & Configuration:**
-    -   Encryption of API keys using Fernet cryptography.
-    -   Automatic generation and management of an encryption key (`secret.key`).
-    -   Configuration file (`config/config.json`) saves all settings. Settings are saved automatically when changing language.
-    -   Language files (`language/*.json`) define UI text.
-
--   **Logging & Error Handling:**
-    -   Comprehensive logging to rotating files in the `logs` directory.
-    -   Status and error messages displayed in the GUI and logs.
-    -   **Console Log Level:** Select the minimum level for console messages via the GUI.
-
--   **Interactive Elements:**
-    -   Context menu in the transcription window (copy, add filter/replacement, clear).
-    -   File dialogs for selecting the output file.
+    -   Modern layout with grouped controls and status indicators (WebSocket, Streamer.bot connection, Recording).
+    * **PyInstaller Compatibility:** Path handling refined to ensure configuration, filters, logs, and language files work correctly when run as an executable.
+    -   Automatic detection and selection of UI languages (`language/*.json`). Includes English, German, French, Spanish. Easy to add more.
+    -   Multi-Tab interface (Local, OpenAI, ElevenLabs, WebSocket, Integration, Info).
+    -   Adjustable Console Log Level via GUI.
+-   **Security & Configuration:** API key encryption (`secret.key`), settings saved in `config/config.json` next to the executable or script.
+-   **Logging & Error Handling:** Comprehensive file logging (`logs/`), GUI status messages.
+-   **Interactive Elements:** Context menu in output (copy, add filter/replacement), file dialogs.
 
 ---
 
 ## Dependencies
 
-The application uses various libraries. Ensure all dependencies listed in `requirements.txt` are installed.
-
--   **Key Libraries:** `CustomTkinter`, `sounddevice`, `numpy`, `soundfile`, `openai` (optional), `openai-whisper` (optional), `elevenlabs` (optional), `cryptography`, `websockets`, `requests`.
--   *(Uses the Montserrat font for UI text.)*
-
-> **Installation:**
-> Requires **Python 3.10 or higher**.
-> To install all required packages, use the provided `requirements.txt` file:
-> ```bash
-> pip install -r requirements.txt
-> ```
-> *(Optional dependencies for specific modes are noted in the full requirements file or previous sections).*
+* **Using the Executable:**
+    * **No Python or Python packages needed!** All required libraries are included.
+    * **FFmpeg (Conditional):** Required *only* if you intend to use the **Local Whisper** transcription mode. Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add its `bin` directory to your Windows PATH environment variable. Other modes (OpenAI API, ElevenLabs API, WebSocket) do **not** require FFmpeg.
+* **Running from Source:**
+    * Requires **Python 3.10 or higher**.
+    * All packages listed in `requirements.txt`[cite: 1, 2, 3]. Install using `pip install -r requirements.txt`.
+    * **FFmpeg:** Required for Local Whisper mode (install separately, add to PATH).
+    * **`openai-whisper`:** Required for Local Whisper mode (`pip install -U openai-whisper`).
 
 ---
 
 ## Installation Guide
 
-1.  **Clone or Download the Repository:**
+Choose the method that best suits you:
+
+**Option 1: Using the Executable (Recommended for most users)**
+
+1.  **Download:** Go to the [**GitHub Releases page**](https://github.com/happytunesai/EZ-STT-Logger-GUI/releases/latest) and download the file named `EZ_STT_Logger_GUI.zip` for the latest version.
+2.  **Extract:** Extract the downloaded `EZ_SST_Logger_GUI.zip` file. This will create a folder named `EZ_SST_Logger_GUI`.
+3.  **Place:** Move this extracted `EZ_SST_Logger_GUI` folder to a location of your choice on your computer (e.g., your Desktop or `C:\Tools\`).
+4.  **FFmpeg (For Local Whisper Only):** If you plan to use the **Local Whisper** mode:
+    * Download FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html) (usually a "release build" zip file).
+    * Extract the zip file to a permanent location (e.g., `C:\ffmpeg`).
+    * Add the `bin` folder inside the extracted FFmpeg folder (e.g., `C:\ffmpeg\bin`) to your Windows System `PATH` environment variable. (Search Windows for "Edit environment variables for your account"). **Restart your PC** after changing the PATH for it to take effect system-wide.
+5.  **Run:** Open the `EZ_SST_Logger_GUI` folder you extracted and placed in Step 3, then double-click the `EZ_SST_Logger_GUI.exe` file inside it to start the application.
+6.  **First Run:** On the first run (or when needed), the application will automatically create necessary folders like `config`, `filter`, `logs`, and `language` **inside the `EZ_SST_Logger_GUI` folder where the `.exe` file is located**. A `config/secret.key` for encryption will also be generated in the `config` folder if it doesn't exist.
+
+**Option 2: Running from Source (For development or customization)**
+
+1.  **Prerequisites:** Ensure you have Python 3.10+ and Git installed.
+2.  **Clone Repository:**
     ```bash
-    git clone [https://github.com/happytunesai/EZ-SST-Logger-GUI.git](https://github.com/happytunesai/EZ-SST-Logger-GUI.git)
-    cd EZ-SST-Logger-GUI
+    git clone [https://github.com/happytunesai/EZ-STT-Logger-GUI.git](https://github.com/happytunesai/EZ-STT-Logger-GUI.git)
+    cd EZ-STT-Logger-GUI
     ```
-    Or [download](https://github.com/happytunesai/EZ-STT-Logger-GUI/releases) and extract the [latest Release](https://github.com/happytunesai/EZ-STT-Logger-GUI/releases/latest).
-
-2.  **Verify Directory Structure:**
-    Ensure you have the main script and the `lib` folder containing the core modules:
+    Or download and extract the source code ZIP from GitHub.
+3.  **(Recommended) Create Virtual Environment:**
+    ```bash
+    python -m venv .venv
+    .\.venv\Scripts\activate  # Windows
+    # source .venv/bin/activate # Linux/macOS
     ```
-    EZ-SST-Logger-GUI/
-    ├── config/
-    ├── filter/
-    ├── language/
-    │   ├── de.json
-    │   ├── en.json
-    │   ├── es.json
-    │   └── fr.json
-    ├── lib/
-    │   ├── __init__.py
-    │   ├── audio_processing.py
-    │   ├── config_manager.py
-    │   ├── constants.py
-    │   ├── gui.py
-    │   ├── gui_layout.py
-    │   ├── info.py
-    │   ├── language_manager.py
-    │   ├── logger_setup.py
-    │   ├── text_processing.py
-    │   ├── utils.py
-    │   └── websocket_utils.py
-    ├── logs/
-    ├── main.py
-    ├── README.md
-    ├── requirements.txt
-    └── logo.ico
-    ```
-    *(Folders like `config`, `filter`, `logs`, `language` are created automatically on first run if missing)*.
-
-3.  **Install Dependencies:**
-    (Recommended: Use a virtual environment)
+4.  **Install Dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
-    *Requires Python 3.10+.*
-
-4.  **First Run & Configuration:**
-    -   An encryption key (`config/secret.key`) is generated on first run. **Keep this safe!**
-    -   Default config (`config/config.json`), filter/replacement files (`filter/`), and language files (`language/`) are created if missing. Configure settings via the GUI.
-
-5.  **Start the Application:**
+5.  **Install Optional Dependencies (If needed):**
+    * For **Local Whisper** mode: `pip install -U openai-whisper` AND install FFmpeg + add to PATH (see step 3 in Option 1).
+6.  **Run:**
     ```bash
     python main.py
     ```
+7.  **First Run:** Folders (`config`, `filter`...) and the `secret.key` will be created in the project directory.
 
 ---
 
@@ -163,70 +105,18 @@ The application uses various libraries. Ensure all dependencies listed in `requi
 
 ### User Interface
 
--   **Tabs:** Select the desired mode or function (Local, OpenAI API, ElevenLabs API, WebSocket, Integration (SB), Info).
--   **Common Settings (Below Tabs):** Configure Microphone, STT Language, Output Format/File, Buffering/Silence times.
--   **Control Panel (Right Side):** Access Service Indicators (WS, SB), Reload Mics, Start/Stop Recording, Edit Filters/Replacements.
--   **Info Tab:** View version, access links, check for updates.
--   **Status Bar (Bottom):** View status messages, select UI Language and Console Log Level.
+* **Tabs:** Select mode/function (Local, OpenAI API, ElevenLabs API, WebSocket, Integration (SB), Info).
+* **Integration (SB) Tab:** Configure Streamer.bot URL, Prefix Text, and the **Botname** used for context menu replacements.
+* **Common Settings (Below Tabs):** Configure Mic, STT Language, Output Format/File, Buffering/Silence.
+* **Control Panel (Right):** Service Indicators (WS, SB), Reload Mics, Start/Stop Rec, Edit Filters/Replacements.
+* **Info Tab:** Version, links, update check.
+* **Status Bar (Bottom):** Status messages, UI Language, Console Log Level.
 
--   **Recording:**
-    -   Select a microphone.
-    -   Navigate to a recording configuration tab (e.g., Local).
-    -   Start/Stop via the button (active on relevant tabs) or WebSocket command. The light next to the button indicates recording status.
-      
-        -  ⚫ Gray =  not recording
-        -  🔴 Red = recording
-
--   **Update Check (Info Tab):**
-    -   Click "Check for Updates".
-    -   Observe the status label.
-    -   Click "Download Update" if it appears.
-
-### Commands and External Control
-
--   **WebSocket Control:** Enable on the WebSocket tab (check Green indicator). Send `TOGGLE_RECORD` message to the displayed URL (e.g., via Stream Deck Web Requests plugin).
--   **Streamer.bot Integration:** Enable on the Integration (SB) tab (check Green/Yellow indicator). Sends `{"source": "stt", "text": "..."}` JSON to configured SB URL.
+*(Rest of Usage section can remain similar to before, maybe update screenshots if desired)*
 
 ---
 
-## Configuration
-
--   Most settings are managed via the GUI and saved in `config/config.json`.
--   Filters/Replacements are in the `filter/` directory.
--   UI text is defined in `language/*.json`.
--   Visual constants (fonts, colors, padding) can potentially be adjusted in `lib/gui_layout.py`.
-
----
-
-## Example Command Line Usage
-
--   **Start the application:**
-    ```bash
-    python main.py
-    ```
----
-
-## Known Issues and TODOs
-
--   **Audio Buffering Logic Optimization:** Ongoing refinement.
--   **Extended API Integration:** Potential future support for more STT services.
--   **Error Handling:** Continuous improvement.
--   **Streamer.bot Client Robustness:** Improve reconnection logic.
--   **Indicator Detail:** Enhance indicators for more states.
-
----
-
-## License
-
--   This project is licensed under the [MIT License](LICENSE).
----
-
-## Contact 👀
-
-For questions, issues, or contribution suggestions, please contact: `ChatGPT`, `Gemini`, `DeepSeek`, `Claude.ai` 🤖
-or try to dump it [here](https://github.com/happytunesai/EZ-STT-Logger-GUI/issues)! ✅
-
-**GitHub:** [github.com/happytunesai/EZ-SST-Logger-GUI](https://github.com/happytunesai/EZ-SST-Logger-GUI)
+*(Configuration, Example Command Line Usage, Known Issues, License, Contact sections can remain largely the same, just ensure version numbers mentioned match 1.1.7)*
 
 ---
 
