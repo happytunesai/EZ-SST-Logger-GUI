@@ -170,12 +170,21 @@ Choose the method that best suits you:
 
       ![Stream-Deck: Web Requests](https://github.com/user-attachments/assets/f0411000-91a6-4163-acb8-d8fb84a8dea9)
 
--   **Streamer.bot Integration:**
-    -   Enable sending transcriptions to Streamer.bot under the "Integration (SB)" tab and configure the correct Streamer.bot WebSocket URL.
-    -   The application will send transcriptions as JSON messages in the format: `{"source": "stt", "text": "PREFIX + transcribed text"}`.
-    -   Your Streamer.bot instance needs corresponding actions set up to listen for WebSocket client messages and process this JSON payload (e.g., using the `websocketClientReceive` trigger and actions available in extended PNGTuber-GPT versions).
-
-    Link: [https://github.com/happytunesai/PNGTuber-GPT](https://github.com/happytunesai/PNGTuber-GPT-WS)
+-   **Streamer.bot / WebSocket Integration (Outgoing):**
+    -   Enable sending transcriptions under the "Integration (SB)" tab and configure the correct WebSocket server URL (this doesn't have to be Streamer.bot, any compatible WebSocket server will work).
+    -   The application connects as a WebSocket client to the specified URL.
+    -   When a transcription is finalized (after filtering and replacements), the application sends a JSON **string** message over the WebSocket connection.
+    -   **Message Format:** The JSON string sent follows this structure:
+        ```json
+        {"source": "stt", "text": "YOUR_PREFIX + transcribed_text"}
+        ```
+    -   **Example:** If your prefix is `"STREAMER says: "` and the transcribed text is `"Hello world"`, the exact message sent over the WebSocket will be the string:
+        ```
+        {"source": "stt", "text": "STREAMER says: Hello world"}
+        ```
+    -   Any application connected to the same WebSocket server (like Streamer.bot using the `WebSocket Client Receive` trigger, or a custom tool) can listen for these messages, parse the JSON string, and use the `"text"` field. This allows integration beyond just Streamer.bot or the PNGTuber-GPT-WS addon.
+      
+    Link to compatible Addon: [PNGTuber-GPT-WS](https://github.com/happytunesai/PNGTuber-GPT-WS)
 
 ---
 
