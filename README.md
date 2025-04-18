@@ -4,8 +4,8 @@
 **Status:** Release
 
 ---
+![EZ STT Logger GUI v1.1.7](https://github.com/user-attachments/assets/3f31ca69-6a11-49ae-9dcd-78b574f19530)
 
-<img width="676" alt="EZ STT Logger GUI v1.1.7" src="https://github.com/user-attachments/assets/2a8a2860-977d-49fd-b863-13f6c6cc0c50" />
     
 ## Overview
 
