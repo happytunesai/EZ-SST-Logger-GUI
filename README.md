@@ -219,7 +219,7 @@ Language files (`.json` format) reside in the `language/` directory and control 
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). *(Assuming you have a LICENSE file, otherwise update this)*
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
