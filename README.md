@@ -214,7 +214,6 @@ Language files (`.json` format) reside in the `language/` directory and control 
 -   **Extended API Integration:** Support for additional speech recognition services.
 -   **Error Handling:** Improvement of error messages and user guidance for API/connection problems.
 -   **Streamer.bot Client Robustness:** Improve reconnection logic and error handling for the Streamer.bot client.
--   **GUI Language:** Tab names currently do not update dynamically when the language is changed due to limitations in the GUI library.
 
 ---
 
