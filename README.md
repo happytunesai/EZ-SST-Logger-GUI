@@ -99,6 +99,37 @@ Choose the method that best suits you:
     ```
 7.  **First Run:** Folders (`config`, `filter`...) and the `secret.key` will be created in the project directory.
 
+8.  **Verify Directory Structure:**
+    Ensure you have the main script and the `lib` folder containing the core modules:
+    ```
+    EZ-SST-Logger-GUI/
+    ├── config/
+    ├── filter/
+    ├── language/
+    │   ├── de.json
+    │   ├── en.json
+    │   ├── es.json
+    │   └── fr.json
+    ├── lib/
+    │   ├── __init__.py
+    │   ├── audio_processing.py
+    │   ├── config_manager.py
+    │   ├── constants.py
+    │   ├── gui.py
+    │   ├── gui_layout.py
+    │   ├── info.py
+    │   ├── language_manager.py
+    │   ├── logger_setup.py
+    │   ├── text_processing.py
+    │   ├── utils.py
+    │   └── websocket_utils.py
+    ├── logs/
+    ├── main.py
+    ├── README.md
+    ├── requirements.txt
+    └── logo.ico
+    ```
+    *(Folders like `config`, `filter`, `logs`, `language` are created automatically on first run if missing)*.
 ---
 
 ## Usage / Operation
@@ -112,6 +143,85 @@ Choose the method that best suits you:
 * **Info Tab:** Version, links, update check.
 * **Status Bar (Bottom):** Status messages, UI Language, Console Log Level.
   
+-   **Recording:**
+    -   Select your preferred microphone from the dropdown menu (use "Reload" if needed).
+    -   Set language, output format, and output file path.
+    -   Start/Stop recording using the **"Start/Stop Recording"** button or via WebSocket command (`TOGGLE_RECORD`). The button is disabled on WebSocket/Integration tabs, but WebSocket control still works. The indicator light always shows the current recording status.
+
+-   **Interactive Features:**
+    -   **Context Menu:** Right-click in the transcription area allows:
+        -   Copying selected text or all text.
+        -   Adding selected text to the appropriate filter list.
+        -   Adding replacement rules (e.g., to automatically insert *BotnameXY*).
+        -   Clearing the display.
+
+### Commands and External Control
+
+-   **WebSocket Control (e.g., via Stream Deck):**
+    -   Ensure the WebSocket server is enabled in the GUI (WebSocket Tab) and the application is running.
+    -   To control recording via a Stream Deck, you can use the **"Web Requests"** plugin by Elgato ([Marketplace Link](https://marketplace.elgato.com/product/web-requests-d7d46868-f9c8-4fa5-b775-ab3b9a7c8add)).
+    -   Configure a Stream Deck button with the following settings within the "Web Requests" plugin:
+        -   **Request Type / Method:** `WebSocket Message`
+        -   **Title:** Anything you like (e.g., "Toggle STT Rec")
+        -   **URL:** The WebSocket server address shown in the GUI (Default: `ws://localhost:8765`)
+        -   **Message:** `TOGGLE_RECORD`
+    -   Pressing this button on your Stream Deck will now start or stop the recording in the EZ STT Logger GUI.
+    - Example configuration:
+
+      ![Stream-Deck: Web Requests](https://github.com/user-attachments/assets/f0411000-91a6-4163-acb8-d8fb84a8dea9)
+
+-   **Streamer.bot Integration:**
+    -   Enable sending transcriptions to Streamer.bot under the "Integration (SB)" tab and configure the correct Streamer.bot WebSocket URL.
+    -   The application will send transcriptions as JSON messages in the format: `{"source": "stt", "text": "PREFIX + transcribed text"}`.
+    -   Your Streamer.bot instance needs corresponding actions set up to listen for WebSocket client messages and process this JSON payload (e.g., using the `websocketClientReceive` trigger and actions available in extended PNGTuber-GPT versions).
+
+    Link: [https://github.com/happytunesai/PNGTuber-GPT](https://github.com/happytunesai/PNGTuber-GPT)
+
+---
+
+## Configuration
+
+The application saves all important settings in the `config/config.json` file. Configurable parameters include:
+
+-   Mode, API Keys (encrypted), Microphone, Model selections, STT Language, UI Language, Console Log Level, Output Format/Filepath, Buffering times, WebSocket/SB settings, Prefix text, etc.
+
+Changes to filter and replacement files (`filter/` directory) can be made directly or via the GUI context menu.
+
+Language files (`.json` format) reside in the `language/` directory and control the UI text. New languages can be added by placing correctly formatted files here.
+
+---
+
+## Example Command Line Usage
+
+-   **Start the application:**
+    ```bash
+    python main.py
+    ```
+---
+
+## Known Issues and TODOs
+
+-   **Audio Buffering Logic Optimization:** Further adjustments for better silence detection are planned.
+-   **Extended API Integration:** Support for additional speech recognition services.
+-   **Error Handling:** Improvement of error messages and user guidance for API/connection problems.
+-   **Streamer.bot Client Robustness:** Improve reconnection logic and error handling for the Streamer.bot client.
+-   **GUI Language:** Tab names currently do not update dynamically when the language is changed due to limitations in the GUI library.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE). *(Assuming you have a LICENSE file, otherwise update this)*
+
+---
+
+## Contact 👀
+
+For questions, issues, or contribution suggestions, please contact: `ChatGPT`, `Gemini`, `DeepSeek`, `Claude.ai` 🤖
+or try to dump it [here](https://github.com/happytunesai/EZ-SST-Logger-GUI/issues)! ✅
+
+**GitHub:** [github.com/happytunesai/EZ-SST-Logger-GUI](https://github.com/happytunesai/EZ-SST-Logger-GUI)
+
 ---
 
 *Created with ❤️ + AI*
