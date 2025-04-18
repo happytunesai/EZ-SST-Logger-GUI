@@ -19,6 +19,7 @@ try:
     from lib.language_manager import tr
     from lib.constants import APP_VERSION
     from . import gui_layout
+    from lib.utils import get_base_path
 except ImportError as e:
     logging.basicConfig(level=logging.ERROR)
     logger = logging.getLogger(__name__)
@@ -29,22 +30,10 @@ except ImportError as e:
         return text
     APP_VERSION = "?.?.?"
 
-# --- PyInstaller Base Path ---
-def get_base_path():
-    """ Determines the base path for resources """
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        base_path = sys._MEIPASS
-        logger.debug(tr("log_info_pyinstaller_path", path=base_path))
-    else:
-        base_path = os.path.abspath(os.path.dirname(__file__))
-        logger.debug(tr("log_info_source_path", path=base_path))
-    return base_path
-
 # --- Constants ---
 REPO_URL = "https://github.com/happytunesai/EZ-STT-Logger-GUI"
 ADDON_URL = "https://github.com/happytunesai/PNGTuber-GPT"
 GITHUB_API_URL = f"https://api.github.com/repos/happytunesai/EZ-STT-Logger-GUI/releases/latest"
-# <<< NEU: URL zur Releases-Seite >>>
 GITHUB_RELEASES_URL = f"https://github.com/happytunesai/EZ-STT-Logger-GUI/releases"
 
 # --- Helper Functions ---
@@ -115,8 +104,8 @@ def _check_github_release(status_label_widget, update_button_widget):
             logger.warning(tr("log_info_packaging_missing"))
             is_newer = latest_version > current_version
         except Exception as parse_err:
-             logger.warning(tr("log_info_version_parse_error", error=parse_err))
-             is_newer = latest_version > current_version
+            logger.warning(tr("log_info_version_parse_error", error=parse_err))
+            is_newer = latest_version > current_version
 
         if is_newer:
             # <<< MODIFIZIERT: Zeige Button an >>>
@@ -160,9 +149,9 @@ def create_info_tab(tab_frame, app_instance):
     repo_label = ctk.CTkLabel(repo_frame, text=tr("label_repo_link") + ":", font=gui_layout.FONT_NORMAL)
     repo_label.pack(side="left", padx=(0, 5))
     repo_link_button = ctk.CTkButton(repo_frame, text=REPO_URL, font=gui_layout.FONT_NORMAL,
-                                     command=lambda: _open_link(REPO_URL),
-                                     fg_color="transparent", text_color=("blue", "#1E90FF"),
-                                     hover=False, anchor="w")
+                                    command=lambda: _open_link(REPO_URL),
+                                    fg_color="transparent", text_color=("blue", "#1E90FF"),
+                                    hover=False, anchor="w")
     repo_link_button.pack(side="left", fill="x", expand=True)
 
     # --- Addon Link ---
@@ -171,9 +160,9 @@ def create_info_tab(tab_frame, app_instance):
     addon_label = ctk.CTkLabel(addon_frame, text=tr("label_addon_link") + ":", font=gui_layout.FONT_NORMAL)
     addon_label.pack(side="left", padx=(0, 5))
     addon_link_button = ctk.CTkButton(addon_frame, text=ADDON_URL, font=gui_layout.FONT_NORMAL,
-                                      command=lambda: _open_link(ADDON_URL),
-                                      fg_color="transparent", text_color=("blue", "#1E90FF"),
-                                      hover=False, anchor="w")
+                                    command=lambda: _open_link(ADDON_URL),
+                                    fg_color="transparent", text_color=("blue", "#1E90FF"),
+                                    hover=False, anchor="w")
     addon_link_button.pack(side="left", fill="x", expand=True)
 
     # --- Release Check ---

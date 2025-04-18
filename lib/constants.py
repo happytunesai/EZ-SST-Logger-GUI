@@ -41,10 +41,10 @@ LOG_LEVEL_NAMES = list(LOG_LEVELS.keys())
 # --- Network settings ---
 WEBSOCKET_PORT = 8765
 DEFAULT_STREAMERBOT_WS_URL = "ws://127.0.0.1:1337/" # User's port from log
-
+DEFAULT_REPLACEMENT_BOTNAME = "BotnameXY" # Default name for context menu replacement
 # --- Default values & configuration ---
 DEFAULT_STT_PREFIX = "StreamerXY speaks: " # User's prefix from log
-APP_VERSION = "1.1.6" # Updated version
+APP_VERSION = "1.1.7" # Updated version
 DEFAULT_SAMPLERATE = 16000
 DEFAULT_CHANNELS = 1
 DEFAULT_ENERGY_THRESHOLD = 50

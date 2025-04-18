@@ -5,6 +5,7 @@ Utility functions for encryption and audio device detection.
 import os
 import sys
 import queue
+import logging
 
 # Import required libraries with fallback
 try:
@@ -20,17 +21,63 @@ except ImportError:
     print("CRITICAL ERROR: 'sounddevice' not found. Please install: pip install sounddevice")
     sd = None
 
-# Import logger and optional translation
-from lib.logger_setup import logger
-
+# Import logger 
 try:
-    from lib.language_manager import tr
+    from lib.logger_setup import logger
 except ImportError:
-    def tr(key, **kwargs):
+    import logging
+    logger = logging.getLogger("FallbackUtilsLogger")
+
+# Helper function for translation that avoids circular imports
+def tr(key, **kwargs):
+    """
+    Translation function wrapper to avoid circular imports.
+    This function will try to use the tr function from language_manager
+    but falls back to a simple implementation if that's not available.
+    """
+    try:
+        # Only import tr when needed to avoid circular imports
+        from lib.language_manager import tr as lang_tr
+        return lang_tr(key, **kwargs)
+    except ImportError:
+        # Simple fallback implementation
         return key.format(**kwargs) if kwargs else key
 
-# --- Encryption ---
+# --- PyInstaller Base Path ---
+def get_base_path():
+    """ 
+    Determines the base path for resources.
+    Works in both PyInstaller bundled and regular Python environments.
+    """
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS
+        logger.debug(f"Running in PyInstaller bundle, base path: {base_path}")
+    else:
+        try:
+            # First try to get path from the main script
+            base_path = os.path.abspath(os.path.dirname(sys.modules['__main__'].__file__))
+            logger.debug(f"Running from source (main script), base path: {base_path}")
+        except:
+            # Fallback to this file's directory
+            base_path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+            logger.debug(f"Running from source (fallback path), base path: {base_path}")
+    return base_path
 
+# --- PyInstaller Persistent Base Path ---
+def get_persistent_data_path():
+    """Returns the directory in which persistent user data is to be saved."""
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        # Runs as a packed executable: Use the directory of the exe file
+        exe_dir = os.path.dirname(sys.executable)
+        logger.debug(f"Path for persistent data (frozen): {exe_dir}")
+        return exe_dir
+    else:
+        # Runs from the source code: Use the project root from get_base_path()
+        source_dir = get_base_path() # Use the existing function for the source code case
+        logger.debug(f"Path for persistent data (source): {source_dir}")
+        return source_dir
+
+# --- Encryption ---
 def load_or_generate_key(key_path, gui_q=None):
     """
     Loads an encryption key from a file or generates a new one.
@@ -42,29 +89,47 @@ def load_or_generate_key(key_path, gui_q=None):
             gui_q.put(("error", tr("log_utils_crypto_missing_short")))
         return None
 
-    if os.path.exists(key_path):
+    # Convert to absolute path if needed
+    absolute_key_path = key_path
+    if not os.path.isabs(key_path):
+        absolute_key_path = os.path.join(get_base_path(), key_path)
+        logger.debug(f"Using absolute key path: {absolute_key_path}")
+
+    if os.path.exists(absolute_key_path):
         try:
-            with open(key_path, 'rb') as f:
+            with open(absolute_key_path, 'rb') as f:
                 key = f.read()
             if len(key) == 44 and b'=' in key:
-                logger.info(tr("log_utils_key_loaded", path=key_path))
+                logger.info(tr("log_utils_key_loaded", path=absolute_key_path))
                 return key
             else:
-                logger.warning(tr("log_utils_key_invalid", path=key_path))
+                logger.warning(tr("log_utils_key_invalid", path=absolute_key_path))
         except Exception as e:
-            logger.warning(tr("log_utils_key_read_error", path=key_path, error=str(e)))
+            logger.warning(tr("log_utils_key_read_error", path=absolute_key_path, error=str(e)))
 
     logger.info(tr("log_utils_key_generating"))
     key = Fernet.generate_key()
+    
+    # Ensure directory exists
+    key_dir = os.path.dirname(absolute_key_path)
+    if key_dir and not os.path.exists(key_dir):
+        try:
+            os.makedirs(key_dir, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Failed to create directory for key file: {e}")
+            if gui_q:
+                gui_q.put(("error", f"Failed to create key directory: {e}"))
+            return key  # Still return the key even if we can't save it
+
     try:
-        with open(key_path, 'wb') as f:
+        with open(absolute_key_path, 'wb') as f:
             f.write(key)
-        logger.info(tr("log_utils_key_saved", path=key_path))
+        logger.info(tr("log_utils_key_saved", path=absolute_key_path))
         print("\n" + "=" * 60)
-        print(tr("log_utils_key_important_notice", path=key_path))
+        print(tr("log_utils_key_important_notice", path=absolute_key_path))
         print("=" * 60 + "\n")
     except IOError as e:
-        logger.error(tr("log_utils_key_write_error", path=key_path, error=str(e)))
+        logger.error(tr("log_utils_key_write_error", path=absolute_key_path, error=str(e)))
         if gui_q:
             gui_q.put(("error", tr("log_utils_key_write_error_short", error=str(e))))
     return key
@@ -136,8 +201,8 @@ def list_audio_devices_for_gui(gui_q=None):
             full_devices_list = sd.query_devices()
             for i, dev in enumerate(full_devices_list):
                 if dev['name'] == default_input_device_info['name'] and \
-                   dev['hostapi'] == default_input_device_info['hostapi'] and \
-                   dev['max_input_channels'] > 0:
+                    dev['hostapi'] == default_input_device_info['hostapi'] and \
+                    dev['max_input_channels'] > 0:
                     default_device_index = i
                     logger.debug(tr("log_utils_default_device_found", index=i, name=dev['name']))
                     break

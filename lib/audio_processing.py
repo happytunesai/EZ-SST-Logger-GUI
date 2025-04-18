@@ -83,9 +83,9 @@ def initialize_stt_client(mode, gui_q, api_key=None, model_name=None):
 
     if mode == "local":
         if not whisper:
-             gui_q.put(("status", tr("log_ap_whisper_missing")))
-             gui_q.put(("error", tr("log_ap_whisper_local_unavailable")))
-             return False
+            gui_q.put(("status", tr("log_ap_whisper_missing")))
+            gui_q.put(("error", tr("log_ap_whisper_local_unavailable")))
+            return False
         # Load or reuse the local Whisper model
         if local_whisper_model is None or currently_loaded_local_model_name != model_name:
             gui_q.put(("status", tr("log_ap_loading_model", model_name=model_name)))
@@ -108,9 +108,9 @@ def initialize_stt_client(mode, gui_q, api_key=None, model_name=None):
 
     elif mode == "openai":
         if not openai:
-             gui_q.put(("status", tr("log_ap_openai_missing")))
-             gui_q.put(("error", tr("log_ap_openai_unavailable")))
-             return False
+            gui_q.put(("status", tr("log_ap_openai_missing")))
+            gui_q.put(("error", tr("log_ap_openai_unavailable")))
+            return False
         if not api_key:
             gui_q.put(("status", tr("log_ap_openai_key_missing")))
             gui_q.put(("error", tr("log_ap_openai_key_invalid")))
@@ -126,11 +126,11 @@ def initialize_stt_client(mode, gui_q, api_key=None, model_name=None):
             logger.info(tr("log_ap_openai_initialized"))
             return True  # Signal success
         except openai.AuthenticationError:
-             logger.error(tr("log_ap_openai_auth_error"))
-             gui_q.put(("status", tr("log_ap_openai_key_invalid_status")))
-             gui_q.put(("error", tr("log_ap_openai_key_expired")))
-             openai_client = None
-             return False
+            logger.error(tr("log_ap_openai_auth_error"))
+            gui_q.put(("status", tr("log_ap_openai_key_invalid_status")))
+            gui_q.put(("error", tr("log_ap_openai_key_expired")))
+            openai_client = None
+            return False
         except Exception as e:
             logger.exception(tr("log_ap_openai_init_error"))
             gui_q.put(("status", tr("log_ap_openai_init_error_status")))
@@ -158,11 +158,11 @@ def initialize_stt_client(mode, gui_q, api_key=None, model_name=None):
             logger.info(tr("log_ap_elevenlabs_initialized"))
             return True  # Signal success
         except ElevenLabsApiError as e:
-             logger.error(tr("log_ap_elevenlabs_api_error", error=e))
-             gui_q.put(("status", tr("log_ap_elevenlabs_api_error_status", code=e.status_code)))
-             gui_q.put(("error", tr("log_ap_elevenlabs_error_details", error=e)))
-             elevenlabs_client = None
-             return False
+            logger.error(tr("log_ap_elevenlabs_api_error", error=e))
+            gui_q.put(("status", tr("log_ap_elevenlabs_api_error_status", code=e.status_code)))
+            gui_q.put(("error", tr("log_ap_elevenlabs_error_details", error=e)))
+            elevenlabs_client = None
+            return False
         except Exception as e:
             logger.exception(tr("log_ap_elevenlabs_init_error"))
             gui_q.put(("status", tr("log_ap_elevenlabs_init_error_status")))
@@ -210,12 +210,12 @@ def transcribe_audio_chunk(audio_data_np, mode, gui_q, lang=None, openai_model="
             # Ensure audio is float32 as expected by Whisper
             audio_float32 = audio_data_np.astype(np.float32)
             logger.debug(tr("log_ap_local_transcription_start", 
-                           length=f"{len(audio_float32)/DEFAULT_SAMPLERATE:.2f}", 
-                           options=transcription_options))
+                        length=f"{len(audio_float32)/DEFAULT_SAMPLERATE:.2f}", 
+                        options=transcription_options))
             result = local_whisper_model.transcribe(audio_float32, **transcription_options)
             text_raw = result["text"].strip()
             logger.debug(tr("log_ap_local_transcription_result", 
-                           text=f"{text_raw[:100]}..." if len(text_raw) > 100 else text_raw))
+                        text=f"{text_raw[:100]}..." if len(text_raw) > 100 else text_raw))
 
         elif mode == "openai":
             if openai_client is None:
@@ -228,10 +228,10 @@ def transcribe_audio_chunk(audio_data_np, mode, gui_q, lang=None, openai_model="
             files_tuple = ('audio.wav', audio_buffer_bytes, 'audio/wav')
             api_language = lang if lang else None  # API expects None for auto-detect
             logger.debug(tr("log_ap_openai_transcription_start", 
-                           model=openai_model, 
-                           language=api_language, 
-                           has_prompt=api_prompt is not None, 
-                           length=f"{len(audio_data_np)/DEFAULT_SAMPLERATE:.2f}"))
+                        model=openai_model, 
+                        language=api_language, 
+                        has_prompt=api_prompt is not None, 
+                        length=f"{len(audio_data_np)/DEFAULT_SAMPLERATE:.2f}"))
             response = openai_client.audio.transcriptions.create(
                 model=openai_model,
                 file=files_tuple,
@@ -242,20 +242,20 @@ def transcribe_audio_chunk(audio_data_np, mode, gui_q, lang=None, openai_model="
             text_raw = response.text.strip()
             audio_buffer_bytes.close()
             logger.debug(tr("log_ap_openai_transcription_result", 
-                           text=f"{text_raw[:100]}..." if len(text_raw) > 100 else text_raw))
+                        text=f"{text_raw[:100]}..." if len(text_raw) > 100 else text_raw))
 
         elif mode == "elevenlabs":
             if elevenlabs_client is None:
                 raise RuntimeError("ElevenLabs API Client is not initialized.")
             if el_model_id is None:
-                 raise ValueError("ElevenLabs Model ID not specified.")
+                raise ValueError("ElevenLabs Model ID not specified.")
             # Convert numpy array to MP3 in memory (ElevenLabs prefers MP3)
             audio_buffer_bytes = io.BytesIO()
             sf.write(audio_buffer_bytes, audio_data_np, DEFAULT_SAMPLERATE, format='MP3')  # Use MP3
             audio_buffer_bytes.seek(0)
             logger.debug(tr("log_ap_elevenlabs_transcription_start", 
-                           model=el_model_id, 
-                           length=f"{len(audio_data_np)/DEFAULT_SAMPLERATE:.2f}"))
+                        model=el_model_id, 
+                        length=f"{len(audio_data_np)/DEFAULT_SAMPLERATE:.2f}"))
             # Call the speech-to-text conversion method
             response = elevenlabs_client.speech_to_text.convert(
                 file=audio_buffer_bytes,
@@ -270,33 +270,33 @@ def transcribe_audio_chunk(audio_data_np, mode, gui_q, lang=None, openai_model="
                 text_raw = str(response)
             audio_buffer_bytes.close()
             logger.debug(tr("log_ap_elevenlabs_transcription_result", 
-                           text=f"{text_raw[:100]}..." if len(text_raw) > 100 else text_raw))
+                        text=f"{text_raw[:100]}..." if len(text_raw) > 100 else text_raw))
 
         return text_raw  # Return the raw transcription text
 
     # --- Error handling specific to APIs ---
     except openai.APIError as e:
-         logger.error(tr("log_ap_openai_api_error", error=e))
-         gui_q.put(("status", tr("log_ap_openai_api_error_status")))
-         return f"[OpenAI-API-Error: {e.code}]"
+        logger.error(tr("log_ap_openai_api_error", error=e))
+        gui_q.put(("status", tr("log_ap_openai_api_error_status")))
+        return f"[OpenAI-API-Error: {e.code}]"
     except openai.AuthenticationError:
-         logger.error(tr("log_ap_openai_auth_error_during_transcription"))
-         gui_q.put(("status", tr("log_ap_openai_auth_error_status")))
-         return "[OpenAI-Auth-Error]"
+        logger.error(tr("log_ap_openai_auth_error_during_transcription"))
+        gui_q.put(("status", tr("log_ap_openai_auth_error_status")))
+        return "[OpenAI-Auth-Error]"
     except ElevenLabsApiError as e:
-         logger.error(tr("log_ap_elevenlabs_api_error_transcription", error=e))
-         gui_q.put(("status", tr("log_ap_elevenlabs_api_error_status", code=e.status_code)))
-         return f"[ElevenLabs-API-Error: {e.status_code}]"
+        logger.error(tr("log_ap_elevenlabs_api_error_transcription", error=e))
+        gui_q.put(("status", tr("log_ap_elevenlabs_api_error_status", code=e.status_code)))
+        return f"[ElevenLabs-API-Error: {e.status_code}]"
     # --- General error handling ---
     except sd.PortAudioError as e:
-         # This error should actually occur in stream handling, but catch it here to be safe
-         logger.exception(tr("log_ap_portaudio_error"))
-         gui_q.put(("status", tr("log_ap_audio_error_status")))
-         return "[Audio-Error]"
+        # This error should actually occur in stream handling, but catch it here to be safe
+        logger.exception(tr("log_ap_portaudio_error"))
+        gui_q.put(("status", tr("log_ap_audio_error_status")))
+        return "[Audio-Error]"
     except RuntimeError as e:
-         logger.error(tr("log_ap_runtime_error", error=e))
-         gui_q.put(("status", tr("log_ap_runtime_error_status", error=e)))
-         return f"[Runtime-Error]"
+        logger.error(tr("log_ap_runtime_error", error=e))
+        gui_q.put(("status", tr("log_ap_runtime_error_status", error=e)))
+        return f"[Runtime-Error]"
     except Exception as e:
         logger.exception(tr("log_ap_transcription_error", mode=mode))
         api_name = mode.capitalize()
@@ -347,8 +347,8 @@ def recording_worker(**kwargs):
     # --- Initialization ---
     logger.info(tr("log_ap_worker_start", mode=processing_mode, device=device_id, model=model_name or elevenlabs_model_id))
     if not initialize_stt_client(processing_mode, gui_q,
-                                 api_key=openai_api_key if processing_mode == "openai" else elevenlabs_api_key,
-                                 model_name=model_name if processing_mode == "local" else None):
+                                api_key=openai_api_key if processing_mode == "openai" else elevenlabs_api_key,
+                                model_name=model_name if processing_mode == "local" else None):
         logger.error(tr("log_ap_client_init_failed"))
         stop_recording_flag.set()  # Ensure flag is set when init fails
         gui_q.put(("finished", None))  # Notify GUI
@@ -426,8 +426,8 @@ def recording_worker(**kwargs):
                                 # Still within silence tolerance time
                                 should_transcribe = False
                         else:
-                             # Already silent, no processing needed unless buffer is full
-                             should_transcribe = False
+                            # Already silent, no processing needed unless buffer is full
+                            should_transcribe = False
 
                     # --- Transcription triggers ---
                     buffer_duration_samples = len(audio_buffer)
@@ -471,8 +471,8 @@ def recording_worker(**kwargs):
 
                         gui_q.put(("status", tr("log_ap_segment_finished", segment_id=current_segment_id, mode=processing_mode.upper())))
                         logger.info(tr("log_ap_segment_result", 
-                                      segment_id=current_segment_id, 
-                                      text=f"{text_filtered[:100]}..." if len(text_filtered) > 100 else text_filtered))
+                                    segment_id=current_segment_id, 
+                                    text=f"{text_filtered[:100]}..." if len(text_filtered) > 100 else text_filtered))
 
                         # --- Output ---
                         if text_filtered and "[Error]" not in text_filtered:  # Check for error markers
@@ -495,8 +495,8 @@ def recording_worker(**kwargs):
                                     logger.error(tr("log_ap_file_write_error", filename=output_file, error=e_io))
                                     gui_q.put(("error", tr("log_ap_file_write_error", filename=os.path.basename(output_file), error=e_io)))
                                 except Exception as e_file:
-                                     logger.exception(tr("log_ap_file_unexpected_error", filename=output_file))
-                                     gui_q.put(("error", tr("log_ap_file_unexpected_error", filename=os.path.basename(output_file), error=e_file)))
+                                    logger.exception(tr("log_ap_file_unexpected_error", filename=output_file))
+                                    gui_q.put(("error", tr("log_ap_file_unexpected_error", filename=os.path.basename(output_file), error=e_file)))
 
                             # Send to Streamer.bot via queue
                             if send_to_streamerbot_flag:
@@ -509,10 +509,10 @@ def recording_worker(**kwargs):
                                     payload_json = json.dumps(payload)
                                     streamerbot_queue.put(payload_json)
                                     logger.debug(tr("log_ap_sb_message_sent", 
-                                                   message=f"{payload_json[:100]}..." if len(payload_json) > 100 else payload_json))
+                                                message=f"{payload_json[:100]}..." if len(payload_json) > 100 else payload_json))
                                 except queue.Full:
-                                     logger.warning(tr("log_ap_sb_queue_full"))
-                                     gui_q.put(("warning", "SB Queue full!"))
+                                    logger.warning(tr("log_ap_sb_queue_full"))
+                                    gui_q.put(("warning", "SB Queue full!"))
                                 except Exception as e_q:
                                     logger.error(tr("log_ap_sb_queue_error", error=e_q))
                                     gui_q.put(("warning", tr("log_ap_sb_queue_error", error=e_q)))
@@ -524,10 +524,10 @@ def recording_worker(**kwargs):
                     # Queue was empty, i.e., no new audio chunk arrived within the timeout.
                     # Check if the silence threshold has been reached *now*
                     if not is_silent and (time.time() - last_sound_time) > silence_sec:
-                         logger.debug(tr("log_ap_silence_detected", seconds=silence_sec))
-                         is_silent = True
-                         # Process any remaining buffer content, if present
-                         if len(audio_buffer) > int(0.5 * samplerate):  # Threshold to avoid small fragments
+                        logger.debug(tr("log_ap_silence_detected", seconds=silence_sec))
+                        is_silent = True
+                        # Process any remaining buffer content, if present
+                        if len(audio_buffer) > int(0.5 * samplerate):  # Threshold to avoid small fragments
                             segment_counter += 1
                             current_segment_id = segment_counter
                             gui_q.put(("status", tr("log_ap_processing_remainder", segment_id=current_segment_id, mode=processing_mode.upper())))
@@ -552,8 +552,8 @@ def recording_worker(**kwargs):
 
                             gui_q.put(("status", tr("log_ap_remainder_finished", segment_id=current_segment_id, mode=processing_mode.upper())))
                             logger.info(tr("log_ap_remainder_result", 
-                                          segment_id=current_segment_id, 
-                                          text=f"{text_filtered[:100]}..." if len(text_filtered) > 100 else text_filtered))
+                                        segment_id=current_segment_id, 
+                                        text=f"{text_filtered[:100]}..." if len(text_filtered) > 100 else text_filtered))
 
                             # --- Output (repeat logic) ---
                             if text_filtered and "[Error]" not in text_filtered:
@@ -572,8 +572,8 @@ def recording_worker(**kwargs):
                                         logger.error(tr("log_ap_file_write_error_remainder", filename=output_file, error=e_io))
                                         gui_q.put(("error", tr("log_ap_file_write_error_remainder", filename=os.path.basename(output_file), error=e_io)))
                                     except Exception as e_file:
-                                         logger.exception(tr("log_ap_file_unexpected_error_remainder", filename=output_file))
-                                         gui_q.put(("error", tr("log_ap_file_unexpected_error_remainder", filename=os.path.basename(output_file), error=e_file)))
+                                        logger.exception(tr("log_ap_file_unexpected_error_remainder", filename=output_file))
+                                        gui_q.put(("error", tr("log_ap_file_unexpected_error_remainder", filename=os.path.basename(output_file), error=e_file)))
 
                                 if send_to_streamerbot_flag:
                                     try:
@@ -582,10 +582,10 @@ def recording_worker(**kwargs):
                                         payload_json = json.dumps(payload)
                                         streamerbot_queue.put(payload_json)
                                         logger.debug(tr("log_ap_sb_message_sent_remainder", 
-                                                       message=f"{payload_json[:100]}..." if len(payload_json) > 100 else payload_json))
+                                                    message=f"{payload_json[:100]}..." if len(payload_json) > 100 else payload_json))
                                     except queue.Full:
-                                         logger.warning(tr("log_ap_sb_queue_full_remainder"))
-                                         gui_q.put(("warning", "SB Queue full!"))
+                                        logger.warning(tr("log_ap_sb_queue_full_remainder"))
+                                        gui_q.put(("warning", "SB Queue full!"))
                                     except Exception as e_q:
                                         logger.error(tr("log_ap_sb_queue_error_remainder", error=e_q))
                                         gui_q.put(("warning", tr("log_ap_sb_queue_error", error=e_q)))
@@ -610,7 +610,7 @@ def recording_worker(**kwargs):
                 stream.close()
                 logger.info(tr("log_ap_stream_stopped"))
             except Exception as e_close:
-                 logger.error(tr("log_ap_stream_close_error", error=e_close))
+                logger.error(tr("log_ap_stream_close_error", error=e_close))
 
         # Empty the audio queue if the callback added more data during shutdown
         while not audio_q.empty():

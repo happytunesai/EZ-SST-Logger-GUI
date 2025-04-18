@@ -33,7 +33,7 @@ try:
         DEFAULT_ELEVENLABS_MODEL, WEBSOCKET_PORT, DEFAULT_STREAMERBOT_WS_URL,
         DEFAULT_STT_PREFIX, FILTER_FILE, FILTER_FILE_EL, REPLACEMENTS_FILE,
         CONFIG_FILE, DEFAULT_SAMPLERATE, DEFAULT_CHANNELS, DEFAULT_ENERGY_THRESHOLD,
-        DEFAULT_TRANSCRIPTION_FILE, DEFAULT_LANGUAGE, CONFIG_DIR,
+        DEFAULT_TRANSCRIPTION_FILE, DEFAULT_LANGUAGE, CONFIG_DIR, DEFAULT_REPLACEMENT_BOTNAME,
         LOG_LEVELS, LOG_LEVEL_NAMES, DEFAULT_LOG_LEVEL
     )
     from lib.utils import list_audio_devices_for_gui
@@ -51,6 +51,9 @@ except ImportError as e:
     # Attempt basic logging if logger failed
     try: logging.basicConfig(level=logging.ERROR); logging.error(f"Import Error: {e}")
     except: pass
+    DEFAULT_REPLACEMENT_BOTNAME = "BotnameXY"       # Default bot name for context menu replacement
+    DEFAULT_LANGUAGE = "en" # Fallback language code if detection or config fails  
+    APP_VERSION = "?.?.?" # Placeholder version 
     sys.exit(1)
 
 
@@ -81,7 +84,7 @@ class WhisperGUI(ctk.CTk):
 
         self.available_languages = available_languages if available_languages else {}
         if not self.available_languages:
-             logger.error(tr("log_gui_no_languages_received"))
+            logger.error(tr("log_gui_no_languages_received"))
 
         self.current_lang_code = app_config.get("language_ui", DEFAULT_LANGUAGE)
         self._update_log_level_display_names()
@@ -283,7 +286,19 @@ class WhisperGUI(ctk.CTk):
         self.stt_prefix_entry = ctk.CTkEntry(self.tab_integration_ref, width=400, font=gui_layout.FONT_NORMAL) # Normal font
         self.stt_prefix_entry.insert(0, self.config.get("stt_prefix", DEFAULT_STT_PREFIX))
         self.stt_prefix_entry.grid(row=3, column=1, columnspan=2, padx=5, pady=(2,5), sticky="w")
-        
+        # --- NEW: Botname for Context Menu Replacement ---
+        # Needs new language key: label_replacement_botname
+        self.replacement_botname_label = ctk.CTkLabel(self.tab_integration_ref, text=tr("label_replacement_botname"), font=gui_layout.FONT_BOLD)
+        self.replacement_botname_label.grid(row=4, column=0, padx=10, pady=(5,5), sticky="w") # New row 4
+        self.replacement_botname_entry = ctk.CTkEntry(self.tab_integration_ref, font=gui_layout.FONT_NORMAL)
+        # Load initial value from config
+        # DEFAULT_REPLACEMENT_BOTNAME needs to be imported or defined
+        initial_botname = self.config.get("replacement_botname", DEFAULT_REPLACEMENT_BOTNAME)
+        self.replacement_botname_entry.insert(0, initial_botname)
+        self.replacement_botname_entry.grid(row=4, column=1, columnspan=2, padx=5, pady=(5,10), sticky="ew") # New row 4, sticky="ew" to expand
+        # Note: Increased bottom pady (10) for spacing
+        # --- End NEW: Botname ---
+
         # Info Tab
         try:
             info.create_info_tab(self.tab_info_ref, self)
@@ -299,13 +314,13 @@ class WhisperGUI(ctk.CTk):
             self.tab_view.set(initial_tab_name)
             logger.debug(tr("log_gui_initial_tab_set", tab_name=initial_tab_name))
         except Exception as e:
-             logger.warning(tr("log_gui_initial_tab_error", tab_name=tr(initial_tab_key), error=e))
-             try: # Fallback to local tab
-                 fallback_name = tr("tab_local")
-                 self.tab_view.set(fallback_name)
-                 logger.warning(tr("log_gui_fallback_tab_used", tab_name=fallback_name))
-             except Exception as e_fallback:
-                 logger.error(tr("log_gui_fallback_tab_error", error=e_fallback))
+            logger.warning(tr("log_gui_initial_tab_error", tab_name=tr(initial_tab_key), error=e))
+            try: # Fallback to local tab
+                fallback_name = tr("tab_local")
+                self.tab_view.set(fallback_name)
+                logger.warning(tr("log_gui_fallback_tab_used", tab_name=fallback_name))
+            except Exception as e_fallback:
+                logger.error(tr("log_gui_fallback_tab_error", error=e_fallback))
 
     def _create_microphone_section(self, parent_frame):
         """ Creates the Microphone configuration block (shorter). """
@@ -473,10 +488,10 @@ class WhisperGUI(ctk.CTk):
         current_display_language = self.available_languages.get(self.current_lang_code, "??")
         self.language_optionmenu = ctk.CTkOptionMenu( selectors_frame, values=language_options, command=self._on_language_change, width=110, font=gui_layout.FONT_NORMAL ) # Normal font
         if current_display_language == "??" or current_display_language not in language_options:
-             fallback_lang_name = self.available_languages.get(DEFAULT_LANGUAGE)
-             if fallback_lang_name and fallback_lang_name in language_options: current_display_language = fallback_lang_name
-             elif language_options and language_options != ["N/A"]: current_display_language = language_options[0]
-             else: current_display_language = "Error"
+            fallback_lang_name = self.available_languages.get(DEFAULT_LANGUAGE)
+            if fallback_lang_name and fallback_lang_name in language_options: current_display_language = fallback_lang_name
+            elif language_options and language_options != ["N/A"]: current_display_language = language_options[0]
+            else: current_display_language = "Error"
         self.language_optionmenu.set(current_display_language)
         self.language_optionmenu.grid(row=0, column=1, padx=(0, 15), pady=5, sticky="e")
 
@@ -644,13 +659,13 @@ class WhisperGUI(ctk.CTk):
                     logger.error(tr("log_gui_log_level_set_error", error=e))
                     self._update_status("status_error_generic", error=e, level="error", is_key=True)
             elif not self.console_handler:
-                 logger.error(tr("log_gui_console_handler_missing"))
-                 self._update_status("status_error_generic", error="Console handler missing", level="error", is_key=True)
+                logger.error(tr("log_gui_console_handler_missing"))
+                self._update_status("status_error_generic", error="Console handler missing", level="error", is_key=True)
             else:
-                 logger.error(tr("log_gui_invalid_log_level", level=selected_level_str))
-                 self._update_status("status_error_generic", error=f"Invalid level {selected_level_str}", level="error", is_key=True)
+                logger.error(tr("log_gui_invalid_log_level", level=selected_level_str))
+                self._update_status("status_error_generic", error=f"Invalid level {selected_level_str}", level="error", is_key=True)
         else:
-             logger.error(tr("log_gui_log_level_str_not_found", level=selected_level_display_name))
+            logger.error(tr("log_gui_log_level_str_not_found", level=selected_level_display_name))
 
     def _on_websocket_enable_change(self):
         """Called when the WebSocket server checkbox is changed."""
@@ -686,26 +701,26 @@ class WhisperGUI(ctk.CTk):
 
         # --- Update all widget texts using tr() AND APPLY FONTS ---
         try:
-            # Tab content (Examples) - Re-apply fonts here in case they were lost
+            # --- Local Tab Updates ---
             self.model_label.configure(text=tr("label_model_whisper"), font=gui_layout.FONT_BOLD)
             self.model_combobox.configure(font=gui_layout.FONT_NORMAL) # Re-apply normal font if needed
-
+            # --- Open AI Tab Updates ---
             self.openai_api_key_label.configure(text=tr("label_api_key_openai"), font=gui_layout.FONT_BOLD)
             self.openai_api_key_entry.configure(placeholder_text=tr("placeholder_api_key_openai"), font=gui_layout.FONT_NORMAL)
-
+            # --- Elevenlabs Tab Updates ---
             self.elevenlabs_api_key_label.configure(text=tr("label_api_key_elevenlabs"), font=gui_layout.FONT_BOLD)
             self.elevenlabs_api_key_entry.configure(placeholder_text=tr("placeholder_api_key_elevenlabs"), font=gui_layout.FONT_NORMAL)
             self.elevenlabs_model_id_label.configure(text=tr("label_model_id_elevenlabs"), font=gui_layout.FONT_BOLD)
             self.elevenlabs_model_id_entry.configure(placeholder_text=tr("placeholder_model_id_elevenlabs"), font=gui_layout.FONT_NORMAL)
             self.filter_parentheses_checkbox.configure(text=tr("checkbox_filter_parentheses"), font=gui_layout.FONT_NORMAL)
-
+            # --- Websocket Tab Updates ---
             self.ws_incoming_label.configure(text=tr("label_websocket_incoming"), font=gui_layout.FONT_BOLD)
             self.websocket_enable_checkbox.configure(text=tr("checkbox_websocket_enable"), font=gui_layout.FONT_NORMAL)
             self.ws_port_label.configure(text=tr("label_websocket_port"), font=gui_layout.FONT_BOLD)
             self.websocket_port_entry.configure(font=gui_layout.FONT_NORMAL)
             self.ws_port_info_label.configure(font=gui_layout.FONT_NORMAL) # Text updated below
             self.ws_cmd_info_label.configure(text=tr("label_websocket_command_info"), font=gui_layout.FONT_NORMAL)
-
+            # --- Integration Tab Updates ---
             self.sb_outgoing_label.configure(text=tr("label_integration_outgoing"), font=gui_layout.FONT_BOLD)
             self.streamerbot_ws_enable_checkbox.configure(text=tr("checkbox_integration_enable"), font=gui_layout.FONT_NORMAL)
             self.sb_url_label.configure(text=tr("label_integration_url"), font=gui_layout.FONT_BOLD)
@@ -713,6 +728,8 @@ class WhisperGUI(ctk.CTk):
             self.sb_url_info_label.configure(text=tr("label_integration_url_info"), font=gui_layout.FONT_NORMAL)
             self.sb_prefix_label.configure(text=tr("label_integration_prefix"), font=gui_layout.FONT_BOLD)
             self.stt_prefix_entry.configure(font=gui_layout.FONT_NORMAL)
+            self.replacement_botname_label.configure(text=tr("label_replacement_botname"), font=gui_layout.FONT_BOLD)
+            self.replacement_botname_entry.configure(font=gui_layout.FONT_NORMAL) # Ensure font is reapplied            
 
             # Update dynamic texts within loop
             try: # Safely update port info label
@@ -803,23 +820,23 @@ class WhisperGUI(ctk.CTk):
 
 
     def _update_initial_status(self):
-         ws_enabled = self.config.get("websocket_enabled", False)
-         sb_enabled = self.config.get("streamerbot_ws_enabled", False)
-         base_status = tr("status_ready")
-         suffix = ""
-         if not ws_enabled:
-              # Try getting specific status part, fallback to generic disabled text
-              try: ws_part = tr("status_ready_ws_disabled").replace(base_status, "").strip()
-              except KeyError: ws_part = tr("status_disabled") + " (WS)" # Fallback
-              suffix += ws_part
-         if not sb_enabled:
-              try: sb_part = tr("status_ready_sb_disabled").strip()
-              except KeyError: sb_part = tr("status_disabled") + " (SB)" # Fallback
-              if suffix and sb_part: suffix += " "
-              suffix += sb_part
-         suffix = suffix.strip()
-         if suffix: self._update_status(f"{base_status} ({suffix})", log=False, is_key=False)
-         else: self._update_status("status_ready", log=False, is_key=True)
+        ws_enabled = self.config.get("websocket_enabled", False)
+        sb_enabled = self.config.get("streamerbot_ws_enabled", False)
+        base_status = tr("status_ready")
+        suffix = ""
+        if not ws_enabled:
+            # Try getting specific status part, fallback to generic disabled text
+            try: ws_part = tr("status_ready_ws_disabled").replace(base_status, "").strip()
+            except KeyError: ws_part = tr("status_disabled") + " (WS)" # Fallback
+            suffix += ws_part
+        if not sb_enabled:
+            try: sb_part = tr("status_ready_sb_disabled").strip()
+            except KeyError: sb_part = tr("status_disabled") + " (SB)" # Fallback
+            if suffix and sb_part: suffix += " "
+            suffix += sb_part
+        suffix = suffix.strip()
+        if suffix: self._update_status(f"{base_status} ({suffix})", log=False, is_key=False)
+        else: self._update_status("status_ready", log=False, is_key=True)
 
     def _on_mic_change(self, choice):
         """Callback when microphone selection changes."""
@@ -924,9 +941,9 @@ class WhisperGUI(ctk.CTk):
         """Attempts to open a file using the system's default application."""
         filename = os.path.basename(filepath)
         if not os.path.exists(filepath):
-             self._update_status("status_error_file_not_found", filename=filename, level="error", is_key=True)
-             logger.error(tr("log_gui_file_not_found", filepath=filepath))
-             return
+            self._update_status("status_error_file_not_found", filename=filename, level="error", is_key=True)
+            logger.error(tr("log_gui_file_not_found", filepath=filepath))
+            return
         try:
             logger.info(tr("log_gui_opening_file", filepath=filepath))
             self._update_status("status_opening_editor", filename=filename, is_key=True)
@@ -974,7 +991,7 @@ class WhisperGUI(ctk.CTk):
                 menu.add_command(label=tr("context_copy"), command=self._copy_selection_to_clipboard)
                 menu.add_separator()
                 menu.add_command(label=tr("context_add_filter"), command=self._add_selection_to_filter)
-                menu.add_command(label=tr("context_add_replacement"), command=self._add_tuneingway_replacement_from_selection)
+                menu.add_command(label=tr("context_add_replacement"), command=self._add_botname_replacement_from_selection)
             else:
                 menu.add_command(label=tr("context_copy_all"), command=self._copy_all_to_clipboard)
 
@@ -1029,8 +1046,8 @@ class WhisperGUI(ctk.CTk):
         try:
             current_mode = self._tab_name_to_mode_safe(self.tab_view.get())
         except Exception as e:
-             logger.warning(f"Could not get current tab mode for adding filter: {e}")
-             current_mode = "local" # Default
+            logger.warning(f"Could not get current tab mode for adding filter: {e}")
+            current_mode = "local" # Default
 
         target_file = FILTER_FILE_EL if current_mode == "elevenlabs" else FILTER_FILE
         filename = os.path.basename(target_file)
@@ -1039,7 +1056,7 @@ class WhisperGUI(ctk.CTk):
             # Ensure directory exists
             os.makedirs(os.path.dirname(target_file), exist_ok=True)
             # Append the selected text on a new line
-            with open(target_file, "a", encoding="utf-8") as f:
+            with open(target_file, "a+", encoding="utf-8") as f:
                 # Check if file needs a newline before adding text
                 f.seek(0, os.SEEK_END) # Go to end of file
                 if f.tell() > 0: # If file is not empty
@@ -1060,40 +1077,60 @@ class WhisperGUI(ctk.CTk):
             logger.exception(tr("log_gui_filter_add_error"))
             self._update_status("status_error_saving_filter", error=e, level="error", is_key=True)
 
-    def _add_tuneingway_replacement_from_selection(self):
-        """Adds the selected text as a key to the replacements JSON with a default value."""
+    # IMPORTANT: Ensure this method is indented correctly inside the WhisperGUI class
+    def _add_botname_replacement_from_selection(self):
+        """Adds the selected text as a key to the replacements JSON
+        using the Botname defined in the GUI entry field."""
         try:
+            # Get selected text from the main textbox
             selected_text = self.textbox.get("sel.first", "sel.last").strip()
         except tk.TclError:
+            # No text selected
             self._update_status("status_no_selection", level="info", is_key=True)
             return
         if not selected_text:
+            # Selection was empty (e.g., just whitespace)
             self._update_status("status_empty_selection", level="info", is_key=True)
             return
 
         # Use selected text directly as the key (case-sensitive for JSON keys)
         pattern_key = selected_text
-        # Default replacement value
-        correct_name = "BotnameXY" # TODO: Maybe make this configurable or prompt user?
+
+        # Read Botname from the GUI entry field added previously
+        try:
+            # Get value from the entry widget (ensure self.replacement_botname_entry exists)
+            correct_name = self.replacement_botname_entry.get().strip()
+            if not correct_name: # Fallback if user cleared the field
+                correct_name = DEFAULT_REPLACEMENT_BOTNAME # Use default from constants
+                # Log this fallback
+                logger.warning(f"Replacement Botname field is empty, using default: {correct_name}")
+        except AttributeError: # Handle case where entry widget might not exist yet
+            logger.error("Replacement Botname entry widget not found! Using default.")
+            correct_name = DEFAULT_REPLACEMENT_BOTNAME # Fallback
 
         # Check if the exact key already exists with the same value
+        # Use self.loaded_replacements which should be kept up-to-date
         if pattern_key in self.loaded_replacements and self.loaded_replacements[pattern_key] == correct_name:
             self._update_status("status_replacement_exists", text=selected_text[:20], level="info", is_key=True)
             return
 
-        # Add or update the replacement
+        # Add or update the replacement in the in-memory dictionary
         self.loaded_replacements[pattern_key] = correct_name
+        # Use tr() for logging (key should exist in language files)
         logger.info(tr("log_gui_replacement_added_context", pattern=pattern_key, replacement=correct_name))
 
-        # Save the updated replacements back to the file
+        # Save the updated replacements back to the file using the function from text_processing
+        # Make sure REPLACEMENTS_FILE is imported from constants
         if save_replacements(self.loaded_replacements, REPLACEMENTS_FILE):
+            # Success
             self._update_status("status_replacement_added", text=selected_text[:20], level="success", is_key=True)
         else:
-            # Reload from file if save failed to revert in-memory dict? Or just log error?
-            # For now, just log the error. User might need to fix file permissions.
-            self.loaded_replacements = load_replacements(REPLACEMENTS_FILE) # Revert in-memory change
+            # Save failed, reload from file to revert in-memory change
+            # This prevents the UI state from diverging from the file state on error
+            logger.warning("Failed to save replacements file. Reverting in-memory changes by reloading.")
+            self.loaded_replacements = load_replacements(REPLACEMENTS_FILE) # Revert in-memory change by reloading
+            # Notify user of the error
             self._update_status("status_error_saving_replacements", text=selected_text[:20], level="error", is_key=True)
-
 
     def populate_mic_dropdown(self):
         """Initiates the microphone discovery in a separate thread."""
@@ -1182,9 +1219,9 @@ class WhisperGUI(ctk.CTk):
                 # Don't change text if it's already "Stopping..."
                 current_text = self.start_stop_button.cget("text")
                 if current_text != tr("button_stopping_recording"):
-                     self.start_stop_button.configure(state=button_state, text=stop_text)
+                    self.start_stop_button.configure(state=button_state, text=stop_text)
                 else: # Keep disabled if "Stopping..."
-                     self.start_stop_button.configure(state="disabled")
+                    self.start_stop_button.configure(state="disabled")
             else:
                 self.indicator_light.configure(fg_color="grey") # Recording indicator OFF
                 start_text = tr("button_start_recording")
@@ -1193,18 +1230,18 @@ class WhisperGUI(ctk.CTk):
                 self.start_stop_button.configure(state=button_state, text=start_text)
 
         except tk.TclError as e: # Handle cases where widgets might be destroyed during close
-             if "invalid command name" in str(e): logger.debug(tr("log_gui_tkerror_check_button"))
-             else: logger.warning(f"TclError checking button state: {e}")
+            if "invalid command name" in str(e): logger.debug(tr("log_gui_tkerror_check_button"))
+            else: logger.warning(f"TclError checking button state: {e}")
         except AttributeError as e: # Handle cases where widgets aren't created yet
             logger.debug(f"AttributeError checking button state (likely init): {e}")
         except Exception as e:
-             logger.warning(tr("log_gui_check_button_error", error=e))
+            logger.warning(tr("log_gui_check_button_error", error=e))
         finally:
             # Schedule the next check only if the window still exists
-             try:
-                 self.after(500, self._check_record_button_state)
-             except tk.TclError: # Handle case where root window is destroyed
-                 logger.debug("Window destroyed, stopping record button check.")
+            try:
+                self.after(500, self._check_record_button_state)
+            except tk.TclError: # Handle case where root window is destroyed
+                logger.debug("Window destroyed, stopping record button check.")
 
 
     def toggle_recording(self):
@@ -1241,15 +1278,15 @@ class WhisperGUI(ctk.CTk):
                 logger.debug(tr("log_gui_preparing_worker_args"))
                 worker_args = self._prepare_worker_args(current_config)
             except ValueError as e: # Catch specific errors from arg prep
-                 logger.error(tr("log_gui_worker_args_error", error=e))
-                 self._update_status("status_error_invalid_input", error=e, level="error", is_key=True)
-                 # self._check_record_button_state() # Already called periodically
-                 return
+                logger.error(tr("log_gui_worker_args_error", error=e))
+                self._update_status("status_error_invalid_input", error=e, level="error", is_key=True)
+                # self._check_record_button_state() # Already called periodically
+                return
             except Exception as e: # Catch unexpected errors during prep
-                 logger.exception(f"Unexpected error preparing worker args: {e}")
-                 self._update_status("status_error_generic", error=str(e), level="error", is_key=True)
-                 # self._check_record_button_state() # Already called periodically
-                 return
+                logger.exception(f"Unexpected error preparing worker args: {e}")
+                self._update_status("status_error_generic", error=str(e), level="error", is_key=True)
+                # self._check_record_button_state() # Already called periodically
+                return
 
 
             logger.debug(tr("log_gui_clearing_stop_flag"))
@@ -1260,23 +1297,23 @@ class WhisperGUI(ctk.CTk):
 
             # Clear log file if requested
             if current_config.get("clear_log_on_start", False):
-                 log_filepath = current_config.get("output_filepath")
-                 if log_filepath: # Only clear if a path is actually set
-                     try:
-                         # Ensure directory exists before clearing file
-                         log_dir = os.path.dirname(log_filepath) or '.'
-                         os.makedirs(log_dir, exist_ok=True)
-                         # Clear the file content
-                         with open(log_filepath, 'w') as f: f.truncate(0)
-                         logger.info(tr("log_gui_output_file_cleared", filepath=log_filepath))
-                     except IOError as e:
-                         logger.error(tr("log_gui_output_file_clear_error", filepath=log_filepath, error=e))
-                         self._update_status("status_error_clearing_output_file", error=e, level="error", is_key=True)
-                     except Exception as e: # Catch other potential errors like permissions
-                         logger.error(f"Unexpected error clearing output file {log_filepath}: {e}")
-                         self._update_status("status_error_clearing_output_file", error=e, level="error", is_key=True)
-                 else:
-                     logger.warning("Clear log on start checked, but no output file path is set.")
+                log_filepath = current_config.get("output_filepath")
+                if log_filepath: # Only clear if a path is actually set
+                    try:
+                        # Ensure directory exists before clearing file
+                        log_dir = os.path.dirname(log_filepath) or '.'
+                        os.makedirs(log_dir, exist_ok=True)
+                        # Clear the file content
+                        with open(log_filepath, 'w') as f: f.truncate(0)
+                        logger.info(tr("log_gui_output_file_cleared", filepath=log_filepath))
+                    except IOError as e:
+                        logger.error(tr("log_gui_output_file_clear_error", filepath=log_filepath, error=e))
+                        self._update_status("status_error_clearing_output_file", error=e, level="error", is_key=True)
+                    except Exception as e: # Catch other potential errors like permissions
+                        logger.error(f"Unexpected error clearing output file {log_filepath}: {e}")
+                        self._update_status("status_error_clearing_output_file", error=e, level="error", is_key=True)
+                else:
+                    logger.warning("Clear log on start checked, but no output file path is set.")
 
 
             logger.debug(tr("log_gui_starting_worker_thread", mode=worker_args['processing_mode']))
@@ -1287,10 +1324,10 @@ class WhisperGUI(ctk.CTk):
                 self.recording_thread.start()
                 logger.info(tr("log_gui_worker_thread_started"))
             except Exception as e:
-                 logger.exception("Failed to start recording worker thread.")
-                 self.is_recording = False # Revert state
-                 self._check_record_button_state() # Update button/indicator
-                 self._update_status("status_error_starting_thread", error=e, level="error", is_key=True)
+                logger.exception("Failed to start recording worker thread.")
+                self.is_recording = False # Revert state
+                self._check_record_button_state() # Update button/indicator
+                self._update_status("status_error_starting_thread", error=e, level="error", is_key=True)
 
         # Update button state after action (handled by _check_record_button_state call)
 
@@ -1319,9 +1356,9 @@ class WhisperGUI(ctk.CTk):
                     return False
             # Check write permissions for the directory
             if not os.access(output_dir, os.W_OK):
-                 self._update_status("status_error_output_dir_write", level="error", is_key=True)
-                 logger.error(f"No write permission for output directory: '{output_dir}'")
-                 return False
+                self._update_status("status_error_output_dir_write", level="error", is_key=True)
+                logger.error(f"No write permission for output directory: '{output_dir}'")
+                return False
         # else: Output file is optional, maybe log a warning?
         #    logger.warning("No output file specified.")
 
@@ -1331,10 +1368,10 @@ class WhisperGUI(ctk.CTk):
             if current_mode == "openai" and not self.openai_api_key_entry.get():
                 self._update_status("status_error_api_key_openai", level="error", is_key=True); return False
             if current_mode == "elevenlabs":
-                 if not self.elevenlabs_api_key_entry.get():
-                     self._update_status("status_error_api_key_elevenlabs", level="error", is_key=True); return False
-                 if not self.elevenlabs_model_id_entry.get():
-                     self._update_status("status_error_model_id_elevenlabs", level="error", is_key=True); return False
+                if not self.elevenlabs_api_key_entry.get():
+                    self._update_status("status_error_api_key_elevenlabs", level="error", is_key=True); return False
+                if not self.elevenlabs_model_id_entry.get():
+                    self._update_status("status_error_model_id_elevenlabs", level="error", is_key=True); return False
         except AttributeError as e:
             logger.error(f"Error accessing tab widgets during validation: {e}")
             self._update_status("status_error_reading_settings", error=e, level="error", is_key=True)
@@ -1377,7 +1414,8 @@ class WhisperGUI(ctk.CTk):
                 "websocket_port": int(self.websocket_port_entry.get()),
                 "streamerbot_ws_enabled": bool(self.streamerbot_ws_enable_checkbox.get()),
                 "streamerbot_ws_url": self.streamerbot_ws_url_entry.get(),
-                "stt_prefix": self.stt_prefix_entry.get()
+                "stt_prefix": self.stt_prefix_entry.get(),
+                "replacement_botname": self.replacement_botname_entry.get().strip() # Read value from new entry
             }
             # Perform quick sanity checks on numeric conversions again
             # CORRECTED INDENTATION: These lines are now at the same level as config_dict assignment
@@ -1387,10 +1425,10 @@ class WhisperGUI(ctk.CTk):
             return config_dict
         # CORRECTED INDENTATION: except block is now at the same level as 'try'
         except (tk.TclError, AttributeError, ValueError) as e:
-             # Catch errors if widgets don't exist or values are invalid
-             logger.error(tr("log_gui_runtime_config_error", error=e))
-             self._update_status("status_error_reading_settings", error=e, level="error", is_key=True)
-             return None # Indicate failure
+            # Catch errors if widgets don't exist or values are invalid
+            logger.error(tr("log_gui_runtime_config_error", error=e))
+            self._update_status("status_error_reading_settings", error=e, level="error", is_key=True)
+            return None # Indicate failure
 
 
     def _prepare_worker_args(self, current_config):
@@ -1566,11 +1604,11 @@ class WhisperGUI(ctk.CTk):
             logger.warning(tr("log_gui_status_label_update_error"))
             return # Stop processing if widget gone
         except AttributeError:
-             # Handle error if status_label doesn't exist yet (init race condition?)
-             logger.warning("Status label not ready for update.")
-             return
+            # Handle error if status_label doesn't exist yet (init race condition?)
+            logger.warning("Status label not ready for update.")
+            return
         except Exception as e:
-             logger.error(f"Unexpected error updating status label: {e}")
+            logger.error(f"Unexpected error updating status label: {e}")
 
 
         # Log the full status message if requested
@@ -1614,12 +1652,12 @@ class WhisperGUI(ctk.CTk):
                 # Attempt graceful shutdown via event loop if possible
                 loop = getattr(self.websocket_stop_event, '_custom_loop_ref', None)
                 if loop and loop.is_running():
-                     loop.call_soon_threadsafe(self.websocket_stop_event.set)
-                     logger.info(tr("log_gui_ws_stop_event_set_via_loop"))
+                    loop.call_soon_threadsafe(self.websocket_stop_event.set)
+                    logger.info(tr("log_gui_ws_stop_event_set_via_loop"))
                 else:
-                     # Fallback if loop not found or not running
-                     logger.warning(tr("log_gui_ws_loop_not_found"))
-                     self.websocket_stop_event.set()
+                    # Fallback if loop not found or not running
+                    logger.warning(tr("log_gui_ws_loop_not_found"))
+                    self.websocket_stop_event.set()
                 # Give the thread a moment to shut down
                 self.websocket_server_thread.join(timeout=1.0)
                 if not self.websocket_server_thread.is_alive():
@@ -1631,11 +1669,11 @@ class WhisperGUI(ctk.CTk):
             except Exception as e:
                 logger.error(tr("log_gui_ws_stop_event_error", error=e))
         elif self.websocket_server_thread:
-             logger.debug("WebSocket server thread exists but is not alive or stop event missing.")
-             stopped = True # Consider it stopped if not alive
+            logger.debug("WebSocket server thread exists but is not alive or stop event missing.")
+            stopped = True # Consider it stopped if not alive
         else:
-             logger.debug("No WebSocket server thread to stop.")
-             stopped = True
+            logger.debug("No WebSocket server thread to stop.")
+            stopped = True
 
         # Clear references regardless of graceful stop success
         self.websocket_server_thread = None
@@ -1722,9 +1760,9 @@ class WhisperGUI(ctk.CTk):
             logger.warning(tr("log_gui_tab_mode_not_found", tab_name=tab_name))
             # Try reverse lookup based on current translation (less reliable)
             for key_lookup, mode_lookup in self._initial_tab_keys_to_mode_map.items():
-                 if tr(key_lookup) == tab_name:
-                      logger.debug(f"Tab name '{tab_name}' resolved to mode '{mode_lookup}' via reverse lookup.")
-                      return mode_lookup
+                if tr(key_lookup) == tab_name:
+                    logger.debug(f"Tab name '{tab_name}' resolved to mode '{mode_lookup}' via reverse lookup.")
+                    return mode_lookup
             # Final fallback
             logger.warning("Falling back to 'local' mode due to tab name mismatch.")
             return "local"
@@ -1779,7 +1817,7 @@ class WhisperGUI(ctk.CTk):
             # (This might require tracking the `after_id` but let's try destroy first)
             self.destroy()
         except tk.TclError as e:
-             logger.warning(f"TclError during destroy (already closed?): {e}")
+            logger.warning(f"TclError during destroy (already closed?): {e}")
         logger.info(tr("log_gui_application_terminated"))
         # Optional: Force exit if threads are hanging? (Use cautiously)
         # sys.exit(0)
