@@ -159,7 +159,7 @@ Choose the method that best suits you:
 
 -   **WebSocket Control (e.g., via Stream Deck):**
     -   Ensure the WebSocket server is enabled in the GUI (WebSocket Tab) and the application is running.
-    -   To control recording via a Stream Deck, you can use the **"Web Requests"** plugin by Elgato ([Marketplace Link](https://marketplace.elgato.com/product/web-requests-d7d46868-f9c8-4fa5-b775-ab3b9a7c8add)).
+    -   To control recording via a Stream Deck, you can use the **"Web Requests"** plugin by Elgato ([@Adrian Mullings](https://github.com/data-enabler)) ([Marketplace Link](https://marketplace.elgato.com/product/web-requests-d7d46868-f9c8-4fa5-b775-ab3b9a7c8add)).
     -   Configure a Stream Deck button with the following settings within the "Web Requests" plugin:
         -   **Request Type / Method:** `WebSocket Message`
         -   **Title:** Anything you like (e.g., "Toggle STT Rec")
