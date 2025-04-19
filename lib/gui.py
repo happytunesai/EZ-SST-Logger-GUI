@@ -46,6 +46,8 @@ try:
     # Import language functions (tr is the main one used here)
     from lib.language_manager import tr, set_current_language, load_language
     from lib.constants import APP_VERSION 
+    from lib.utils import get_base_path
+    from lib.constants import ICON_FILE
 except ImportError as e:
     print(f"Fatal Error: Could not import necessary libraries. Please ensure 'lib' directory is accessible. Details: {e}")
     # Attempt basic logging if logger failed
@@ -137,8 +139,12 @@ class WhisperGUI(ctk.CTk):
         """Configures the main window."""
         logger.debug(tr("log_gui_setup_window"))
         try:
-            if os.path.exists(ICON_FILE): self.iconbitmap(ICON_FILE)
-            else: logger.warning(tr("log_gui_icon_not_found", icon_file=ICON_FILE))
+            icon_path = os.path.join(get_base_path(), ICON_FILE)
+            logger.debug(f"Attempting to load window icon from: {icon_path}")
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
+                logger.debug("Window icon loaded successfully.")    
+            else: logger.warning(tr("log_gui_icon_not_found", icon_file=icon_path))
         except Exception as e: logger.warning(tr("log_gui_icon_error", error=e))
 
         self.title(tr("app_title", version=APP_VERSION))
