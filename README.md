@@ -4,10 +4,7 @@
 **Status:** Release
 
 ---
-<p align="center">
-  <img width="676" alt="EZ_SST_Logger_GUI_v1.1.7_UI" src="https://github.com/user-attachments/assets/3f31ca69-6a11-49ae-9dcd-78b574f19530" />
-</p>
-*(Note: Screenshot shows v1.1.7 UI; v1.1.8 adds FFmpeg status to Local tab)*
+![EZ_SST_Logger_GUI_v1.1.8](https://github.com/user-attachments/assets/69a941e8-3fc4-47de-8cf0-1003bf228d64)
 
 ## Overview
 
