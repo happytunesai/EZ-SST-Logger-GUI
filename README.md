@@ -1,4 +1,6 @@
-# EZ STT Logger GUI
+
+# ![EZ_STT_GUI_LOGO_50](https://github.com/user-attachments/assets/9ccc03b2-6c16-4956-aa49-76c95fdd323a) EZ STT Logger GUI
+
 
 **Version:** 1.1.8
 **Status:** Release
@@ -212,4 +214,4 @@ or try to dump it [here](https://github.com/happytunesai/EZ-STT-Logger-GUI/issue
 
 ---
 
-*Created with ❤️ + AI*
+*Created with ❤️ + AI* ![EZ_STT_GUI_LOGO_150](https://github.com/user-attachments/assets/92017d80-a529-49bd-b56f-53ddd3bcabd7)
