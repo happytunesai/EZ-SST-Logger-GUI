@@ -2,7 +2,7 @@
 """
 Main entry point for the EZ STT Logger application.
 Initializes the necessary components and starts the GUI.
-Includes dynamic language scanning.
+Includes dynamic language scanning and extraction of default resource folders.
 """
 import os
 import sys
@@ -10,8 +10,8 @@ import queue
 import threading
 import time
 import logging
-import json # Needed for loading reference keys
-import shutil # For file copying operations
+import json    # Needed for loading reference keys
+import shutil  # For file copying operations
 
 # --- First, get base path to resolve other modules and paths ---
 def get_initial_base_path():
@@ -29,129 +29,94 @@ try:
     sys.path.insert(0, get_initial_base_path())  # Ensure our modules are found first
     from lib.logger_setup import logger, setup_logging
     from lib.constants import (
-        CONFIG_FILE, KEY_FILE, LOG_DIR, CONFIG_DIR, FILTER_DIR, LANGUAGE_DIR,
-        DEFAULT_LANGUAGE, DEFAULT_LOG_LEVEL,
-        LANG_REFERENCE_CODE # Import reference language code
+        CONFIG_FILE, KEY_FILE, LOG_DIR, CONFIG_DIR, FILTER_DIR,
+        LANGUAGE_DIR, DEFAULT_LANGUAGE, DEFAULT_LOG_LEVEL, LANG_REFERENCE_CODE
     )
     from lib.utils import load_or_generate_key, get_base_path
     from lib.config_manager import load_config
     from lib.gui import WhisperGUI
     from lib.language_manager import (
         set_current_language, load_language, tr,
-        scan_languages, # Import scan function
-        discovered_languages # Import the global dict to check if empty later
+        scan_languages, discovered_languages
     )
     from lib.appearance_manager import apply_initial_appearance
 except ImportError as e:
     print(f"Critical import error in main.py: {e}")
-    print("Make sure you're running from the correct directory")
-    sys.exit(1)
-except ImportError as e:
-    print(f"Critical import error in main.py: {e}")
-    print("Make sure you're running from the correct directory")
     sys.exit(1)
 
-# --- Global queues and flags (retained for passing to GUI) ---
+# --- Global queues and flags ---
 audio_q = queue.Queue()
 gui_q = queue.Queue()
 streamerbot_queue = queue.Queue()
 stop_recording_flag = threading.Event()
 streamerbot_client_stop_event = threading.Event()
 
-queues = { 'audio_q': audio_q, 'gui_q': gui_q, 'streamerbot_q': streamerbot_queue }
-flags = { 'stop_recording': stop_recording_flag, 'stop_streamerbot': streamerbot_client_stop_event }
-handlers = { 'console': None, 'file': None }
+queues = {
+    'audio_q': audio_q,
+    'gui_q': gui_q,
+    'streamerbot_q': streamerbot_queue
+}
+flags = {
+    'stop_recording': stop_recording_flag,
+    'stop_streamerbot': streamerbot_client_stop_event
+}
+handlers = {'console': None, 'file': None}
 
-def extract_bundled_language_files():
+
+def extract_bundled_folder(folder_name: str):
     """
-    Extract language files from the PyInstaller bundle to the language directory.
-    This ensures language files are available when running as an executable.
+    Extracts all files from the bundled <folder_name> in the PyInstaller
+    bundle into the external persistent folder next to the EXE, if not present.
     """
-    # Only needed when running as a PyInstaller bundle
     if not getattr(sys, 'frozen', False):
         return
-        
-    print("Running as PyInstaller bundle - extracting language files...")
-    base_path = get_base_path()
-    bundle_lang_dir = os.path.join(base_path, 'language')
-    
-    # External language directory where we want to store the files for the user
-    # When running as exe, we want language dir next to the executable
     exe_dir = os.path.dirname(sys.executable)
-    external_lang_dir = os.path.join(exe_dir, LANGUAGE_DIR)
-    
-    # Create language dir if it doesn't exist
-    os.makedirs(external_lang_dir, exist_ok=True)
-    print(f"Ensuring language directory exists: {external_lang_dir}")
-    
-    # Check if bundle language directory exists
-    if os.path.exists(bundle_lang_dir):
-        try:
-            print(f"Bundle language dir found at: {bundle_lang_dir}")
-            # Copy all language files from the bundle to the external directory
-            for file_name in os.listdir(bundle_lang_dir):
-                if file_name.endswith('.json'):
-                    src_file = os.path.join(bundle_lang_dir, file_name)
-                    dst_file = os.path.join(external_lang_dir, file_name)
-                    
-                    # Only copy if target doesn't exist or is older
-                    should_copy = False
-                    if not os.path.exists(dst_file):
-                        should_copy = True
-                        reason = "file doesn't exist in target"
-                    elif os.path.getmtime(src_file) > os.path.getmtime(dst_file):
-                        should_copy = True
-                        reason = "bundle file is newer"
-                    
-                    if should_copy:
-                        shutil.copy2(src_file, dst_file)
-                        print(f"Extracted language file: {file_name} ({reason})")
-                    else:
-                        print(f"Skipped language file: {file_name} (target exists and is up-to-date)")
-        except Exception as e:
-            print(f"Error extracting language files: {e}")
+    dest_dir = os.path.join(exe_dir, folder_name)
+    if os.path.isdir(dest_dir):
+        return
+    os.makedirs(dest_dir, exist_ok=True)
+    # Source inside bundle
+    if hasattr(sys, '_MEIPASS'):
+        src_dir = os.path.join(sys._MEIPASS, folder_name)
     else:
-        print(f"Warning: Bundle language directory not found at {bundle_lang_dir}")
+        src_dir = os.path.join(get_base_path(), folder_name)
+    if not os.path.isdir(src_dir):
+        print(f"Warning: bundled folder '{folder_name}' not found at '{src_dir}'")
+        return
+    for fname in os.listdir(src_dir):
+        src_file = os.path.join(src_dir, fname)
+        dst_file = os.path.join(dest_dir, fname)
+        if os.path.isfile(src_file):
+            try:
+                shutil.copy2(src_file, dst_file)
+                print(f"Extracted '{folder_name}/{fname}' to '{dest_dir}'")
+            except Exception as e:
+                print(f"Error extracting '{fname}' in '{folder_name}': {e}")
+
 
 def prepare_filter_directory():
     """
     Create the filter directory if it doesn't exist.
-    The actual filter files will be created by the application on first run.
+    Actual filter files will be generated by the application on first run.
     """
-    # Only needed when running as a PyInstaller bundle
     if not getattr(sys, 'frozen', False):
         return
-        
-    print("Preparing filter directory...")
-    
-    # External filter directory where filter files will be generated
     exe_dir = os.path.dirname(sys.executable)
     external_filter_dir = os.path.join(exe_dir, FILTER_DIR)
-    
-    # Just create the directory if it doesn't exist
-    if not os.path.exists(external_filter_dir):
-        try:
-            os.makedirs(external_filter_dir, exist_ok=True)
-            print(f"Created filter directory: {external_filter_dir}")
-        except Exception as e:
-            print(f"Error creating filter directory: {e}")
+    os.makedirs(external_filter_dir, exist_ok=True)
+
 
 def create_default_config_if_missing():
-    """Create a default config.json file if it doesn't exist"""
-    # Only needed when running as a PyInstaller bundle
+    """
+    Create a default config.json file if it doesn't exist.
+    """
     if not getattr(sys, 'frozen', False):
         return
-        
     exe_dir = os.path.dirname(sys.executable)
     config_dir = os.path.join(exe_dir, CONFIG_DIR)
     config_path = os.path.join(config_dir, os.path.basename(CONFIG_FILE))
-    
-    # Create config dir if it doesn't exist
     os.makedirs(config_dir, exist_ok=True)
-    
-    # Only create config if it doesn't exist
     if not os.path.exists(config_path):
-        print(f"Creating default config file at: {config_path}")
         default_config = {
             "mode": "local",
             "openai_api_key": "",
@@ -164,168 +129,101 @@ def create_default_config_if_missing():
             "output_filepath": "transcription_log.txt",
             "clear_log_on_start": False
         }
-        
         try:
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(default_config, f, indent=4, ensure_ascii=False)
-            print(f"Default config file created successfully")
+            print(f"Created default config at: {config_path}")
         except Exception as e:
             print(f"Error creating default config file: {e}")
 
-# --- Main function ---
+
 def main():
     """Initializes the application and starts the main loop."""
     global handlers
 
-    # Initialize variables to ensure their scope
-    initial_lang_code = None
-    final_discovered_langs = {}
+    # 1) Extract bundled folders on first start
+    for folder in (CONFIG_DIR, FILTER_DIR, LANGUAGE_DIR, 'themes', LOG_DIR):
+        extract_bundled_folder(folder)
 
-    # Get base path for the application for proper path resolution
-    base_path = get_base_path()
-    print(f"Application base path: {base_path}")
-    
-    # Extract bundled files when running as executable
-    extract_bundled_language_files()
-    prepare_filter_directory()
-    create_default_config_if_missing()
-    
-    # Ensure required directories exist with absolute paths
-    for dir_name in [LOG_DIR, CONFIG_DIR, FILTER_DIR, LANGUAGE_DIR]:
-        # When running as an exe, create directories next to the executable
+    # 2) Ensure all resource dirs exist
+    base_path = get_base_path() if not getattr(sys, 'frozen', False) else None
+    for dir_name in (LOG_DIR, CONFIG_DIR, FILTER_DIR, LANGUAGE_DIR):
         if getattr(sys, 'frozen', False):
-            exe_dir = os.path.dirname(sys.executable)
-            dir_path = os.path.join(exe_dir, dir_name)
+            path = os.path.join(os.path.dirname(sys.executable), dir_name)
         else:
-            dir_path = dir_name if os.path.isabs(dir_name) else os.path.join(base_path, dir_name)
-            
-        if not os.path.exists(dir_path):
-            try:
-                os.makedirs(dir_path, exist_ok=True)
-                print(f"Directory '{dir_path}' created or already exists.")
-            except OSError as e:
-                print(f"ERROR: Could not create directory '{dir_path}': {e}")
+            path = os.path.join(base_path, dir_name)
+        os.makedirs(path, exist_ok=True)
 
-    # Get absolute paths for key config files
+    # 3) Determine key & config file paths
     if getattr(sys, 'frozen', False):
-        # When running as an exe, look for files next to the executable
         exe_dir = os.path.dirname(sys.executable)
         key_file_path = os.path.join(exe_dir, CONFIG_DIR, os.path.basename(KEY_FILE))
         config_file_path = os.path.join(exe_dir, CONFIG_DIR, os.path.basename(CONFIG_FILE))
     else:
-        key_file_path = KEY_FILE if os.path.isabs(KEY_FILE) else os.path.join(base_path, KEY_FILE)
-        config_file_path = CONFIG_FILE if os.path.isabs(CONFIG_FILE) else os.path.join(base_path, CONFIG_FILE)
-    
+        key_file_path = os.path.join(base_path, KEY_FILE)
+        config_file_path = os.path.join(base_path, CONFIG_FILE)
+
     print(f"Using key file: {key_file_path}")
     print(f"Using config file: {config_file_path}")
-    
-    # Load or generate encryption key
+
+    # 4) Load or generate encryption key
     encryption_key = load_or_generate_key(key_file_path, gui_q)
     if not encryption_key:
         print("CRITICAL ERROR: Could not load/generate encryption key.")
+        sys.exit(1)
 
-    # --- Load Reference Language Keys ---
+    # 5) Load reference language keys
     reference_keys = set()
-    ref_lang_code = LANG_REFERENCE_CODE
     try:
-        # Call load_language with is_reference_load=True
-        temp_ref_dict = load_language(ref_lang_code, is_reference_load=True)
-        if temp_ref_dict:
-            reference_keys = set(temp_ref_dict.keys())
-            print(f"Successfully loaded reference keys from language '{ref_lang_code}'.")
-        else:
-            # Logger is not fully initialized yet, use print
-            print(f"ERROR: Reference language '{ref_lang_code}' could not be loaded properly. Cannot validate other languages.")
+        temp = load_language(LANG_REFERENCE_CODE, is_reference_load=True)
+        if temp:
+            reference_keys = set(temp.keys())
     except Exception as e:
-        print(f"ERROR: Failed to load reference language keys: {e}. Cannot validate languages.")
+        print(f"ERROR loading reference language: {e}")
 
-    # --- Scan for available and valid languages ---
-    # scan_languages now logs internally
-    final_discovered_langs = scan_languages(reference_keys)
-    if not final_discovered_langs:
-        print(f"ERROR: No valid languages discovered. Application might not display texts correctly.")
-    else:
-        print(f"Discovered languages: {list(final_discovered_langs.keys())}")
+    # 6) Scan for available languages
+    discovered = scan_languages(reference_keys)
+    print(f"Discovered languages: {list(discovered.keys())}")
 
-    # --- Load configuration ---
+    # 7) Load app configuration
     app_config = load_config(config_file_path, encryption_key)
     try:
         apply_initial_appearance(app_config)
     except Exception as e:
-        # Log even if logger isn't fully set? Or just print. Print is safer here.
-        print(f"ERROR: Failed to apply initial appearance settings: {e}")   
+        print(f"ERROR applying appearance: {e}")
 
-    # --- Initialize Logging with Level from Config ---
+    # 8) Setup logging
     initial_log_level_str = app_config.get("log_level", DEFAULT_LOG_LEVEL)
-    # setup_logging now logs internally
     _, console_handler, file_handler = setup_logging(initial_console_level_str=initial_log_level_str)
     handlers['console'] = console_handler
     handlers['file'] = file_handler
-    # Logging is now fully configured
 
-    # --- Determine and set initial UI language ---
-    config_lang_code = app_config.get("language_ui", DEFAULT_LANGUAGE)
-    initial_lang_code = DEFAULT_LANGUAGE # Start with default
-
-    if config_lang_code in final_discovered_langs:
-        initial_lang_code = config_lang_code
-        logger.info(f"Using language '{initial_lang_code}' from configuration.")
+    # 9) Set UI language
+    cfg_lang = app_config.get("language_ui", DEFAULT_LANGUAGE)
+    if cfg_lang in discovered:
+        set_current_language(cfg_lang)
     else:
-        logger.warning(f"Configured language '{config_lang_code}' not found or invalid among discovered languages ({list(final_discovered_langs.keys())}).")
-        if DEFAULT_LANGUAGE in final_discovered_langs:
-            initial_lang_code = DEFAULT_LANGUAGE
-            logger.warning(f"Falling back to default language '{initial_lang_code}'.")
-        elif final_discovered_langs:
-            first_available_code = list(final_discovered_langs.keys())[0]
-            initial_lang_code = first_available_code
-            logger.warning(f"Default language '{DEFAULT_LANGUAGE}' not available. Falling back to first discovered language '{initial_lang_code}'.")
-        else:
-            logger.error("No languages available to set. UI might be broken.")
-            initial_lang_code = None
+        fallback = DEFAULT_LANGUAGE if DEFAULT_LANGUAGE in discovered else (next(iter(discovered), DEFAULT_LANGUAGE))
+        set_current_language(fallback)
 
-    # Load the determined language (or handle None case if needed)
-    if initial_lang_code:
-        # Call set_current_language normally (uses load_language without the flag)
-        set_current_language(initial_lang_code)
-        app_config["language_ui"] = initial_lang_code
-    else:
-        logger.error("No language could be loaded. UI might be broken.")
+    # 10) Optionally clear log
+    if app_config.get("clear_log_on_start", False) and handlers['file']:
+        lf = handlers['file'].baseFilename
+        try:
+            with open(lf, 'w'): pass
+            logger.info(tr("log_logfile_cleared", path=lf))
+        except Exception:
+            pass
 
-    # --- Clear log file on start if configured ---
-    if app_config.get("clear_log_on_start", False):
-        log_file_path = handlers['file'].baseFilename if handlers['file'] else None
-        if log_file_path and os.path.exists(log_file_path):
-            try:
-                with open(log_file_path, 'w') as f: f.truncate(0)
-                # Use tr() now that language is loaded (or should be)
-                logger.info(tr("log_logfile_cleared", path=log_file_path))
-            except IOError as e: 
-                logger.error(tr("log_logfile_clear_error", path=log_file_path, error=str(e)))
-            except Exception as e: 
-                logger.exception(tr("log_logfile_clear_unexpected", path=log_file_path))
-        elif log_file_path: 
-            logger.warning(tr("log_logfile_not_found", path=log_file_path))
-        else: 
-            logger.warning(tr("log_logfile_no_handler"))
-
-    # --- Start GUI ---
+    # 11) Start GUI
     try:
-        logger.info(tr("log_app_started"))
-        # Pass the discovered languages dictionary to the GUI
-        app = WhisperGUI(app_config, encryption_key, queues, flags, handlers, available_languages=final_discovered_langs)
+        app = WhisperGUI(app_config, encryption_key, queues, flags, handlers, available_languages=discovered)
         app.mainloop()
-        logger.info(tr("log_app_ended"))
     except Exception as e:
         logger.exception(tr("log_gui_exception"))
+    finally:
+        sys.exit(0)
 
-    # Log exit and call sys.exit inside main() scope
-    if initial_lang_code: # Check if language was ever set
-        logger.info(tr("log_app_exiting"))
-    else:
-        logger.info("Application exiting (no language loaded).") # Fallback message
-    sys.exit(0)
 
-# --- Entry point ---
 if __name__ == '__main__':
     main()
-    # Code execution should not reach here because sys.exit(0) is called in main()
