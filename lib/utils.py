@@ -6,6 +6,9 @@ import os
 import sys
 import queue
 import logging
+import shutil
+import platform
+import webbrowser
 
 # Import required libraries with fallback
 try:
@@ -168,7 +171,6 @@ def decrypt_data(encrypted_bytes, key):
         return None
 
 # --- Audio Devices ---
-
 def list_audio_devices_for_gui(gui_q=None):
     """
     Returns a dictionary of available audio input devices.
@@ -247,3 +249,31 @@ def list_audio_devices_for_gui(gui_q=None):
             gui_q.put(("error", tr("status_error_mic_select_fail")))
 
     return input_devices_dict
+
+# --- FFMPEG  Update Checker ---
+def check_ffmpeg_path():
+    """
+    Checks if the ffmpeg executable is available in the system's PATH.
+
+    Returns:
+        str or None: The path to the ffmpeg executable if found, otherwise None.
+    """
+    ffmpeg_executable = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+    ffmpeg_path = shutil.which(ffmpeg_executable)
+    if ffmpeg_path:
+        logger.info(tr("log_utils_ffmpeg_found", path=ffmpeg_path)) # Add new translation key
+        return ffmpeg_path
+    else:
+        logger.warning(tr("log_utils_ffmpeg_not_found")) # Add new translation key
+        return None
+
+
+def _open_link(url):
+    """Opens the given URL in the default web browser."""
+    try:
+        webbrowser.open_new_tab(url)
+        logger.info(tr("log_info_link_opened", url=url)) # Keep original key or rename
+    except Exception as e:
+        logger.error(tr("log_info_link_open_error", url=url, error=e)) # Keep original key or rename
+        # Consider if messagebox is appropriate here or just log
+        # messagebox.showerror(tr("error_title"), tr("error_opening_link", url=url, error=str(e)))

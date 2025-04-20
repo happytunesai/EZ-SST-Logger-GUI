@@ -34,7 +34,8 @@ try:
         DEFAULT_STT_PREFIX, FILTER_FILE, FILTER_FILE_EL, REPLACEMENTS_FILE,
         CONFIG_FILE, DEFAULT_SAMPLERATE, DEFAULT_CHANNELS, DEFAULT_ENERGY_THRESHOLD,
         DEFAULT_TRANSCRIPTION_FILE, DEFAULT_LANGUAGE, CONFIG_DIR, DEFAULT_REPLACEMENT_BOTNAME,
-        LOG_LEVELS, LOG_LEVEL_NAMES, DEFAULT_LOG_LEVEL
+        LOG_LEVELS, LOG_LEVEL_NAMES, DEFAULT_LOG_LEVEL, AVAILABLE_APPEARANCE_MODES, AVAILABLE_COLOR_THEMES,
+        DEFAULT_APPEARANCE_MODE, DEFAULT_COLOR_THEME
     )
     from lib.utils import list_audio_devices_for_gui
     from lib.text_processing import (
@@ -47,7 +48,12 @@ try:
     from lib.language_manager import tr, set_current_language, load_language
     from lib.constants import APP_VERSION 
     from lib.utils import get_base_path
+    from lib.appearance_manager import change_appearance_mode, change_color_theme
     from lib.constants import ICON_FILE
+    from lib.utils import check_ffmpeg_path # Import the new check function
+    from lib.constants import FFMPEG_DOWNLOAD_URL # Import the download URL
+    from lib.utils import _open_link 
+    import webbrowser
 except ImportError as e:
     print(f"Fatal Error: Could not import necessary libraries. Please ensure 'lib' directory is accessible. Details: {e}")
     # Attempt basic logging if logger failed
@@ -55,7 +61,13 @@ except ImportError as e:
     except: pass
     DEFAULT_REPLACEMENT_BOTNAME = "BotnameXY"       # Default bot name for context menu replacement
     DEFAULT_LANGUAGE = "en" # Fallback language code if detection or config fails  
-    APP_VERSION = "?.?.?" # Placeholder version 
+    APP_VERSION = "?.?.?" # Placeholder version
+    AVAILABLE_APPEARANCE_MODES = ["System", "Light", "Dark"]
+    AVAILABLE_COLOR_THEMES = ["blue", "green", "dark-blue"]
+    DEFAULT_APPEARANCE_MODE = "System"
+    DEFAULT_COLOR_THEME = "blue"
+    def change_appearance_mode(mode): logger.error("Appearance Manager not available"); return mode
+    def change_color_theme(theme): logger.error("Appearance Manager not available"); return theme
     sys.exit(1)
 
 
@@ -83,32 +95,27 @@ class WhisperGUI(ctk.CTk):
         self.streamerbot_client_stop_event = flags['stop_streamerbot']
         self.console_handler = handlers.get('console')
         self.file_handler = handlers.get('file')
-
         self.available_languages = available_languages if available_languages else {}
         if not self.available_languages:
             logger.error(tr("log_gui_no_languages_received"))
-
         self.current_lang_code = app_config.get("language_ui", DEFAULT_LANGUAGE)
         self._update_log_level_display_names()
         self._create_tab_name_mappings()
-
         self.is_recording = False
         self.available_mics = {}
         self.loaded_filter_patterns = []
         self.loaded_filter_patterns_el = []
         self.loaded_replacements = {}
-
         self.websocket_server_thread = None
         self.websocket_stop_event = None
         self.streamerbot_client_thread = None
         self.recording_thread = None
-
         self._setup_window()
         self._create_widgets()
         self._load_initial_gui_data()
+        self._update_ffmpeg_status()
         self._start_background_tasks()
         self._update_status("status_ready", log=False)
-
         self.after(100, self._process_gui_queue)
         self.after(500, self._check_record_button_state)
 
@@ -150,9 +157,6 @@ class WhisperGUI(ctk.CTk):
         self.title(tr("app_title", version=APP_VERSION))
         self.geometry("900x750")
         self.minsize(800, 650)
-
-        ctk.set_appearance_mode("System")
-        ctk.set_default_color_theme("blue")
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1) # Allow main_frame to expand
@@ -221,14 +225,41 @@ class WhisperGUI(ctk.CTk):
         self.tab_integration_ref = self.tab_view.add(tr("tab_integration"))
         self.tab_info_ref = self.tab_view.add(tr("tab_info"))
 
-        # --- Create content within tabs ---
         # Local Tab
-        self.tab_local_ref.columnconfigure(1, weight=0)
-        self.model_label = ctk.CTkLabel(self.tab_local_ref, text=tr("label_model_whisper"), font=gui_layout.FONT_BOLD) # Bold
-        self.model_label.grid(row=0, column=0, padx=10, pady=(5,5), sticky="w") # Reduced pady
-        self.model_combobox = ctk.CTkComboBox(self.tab_local_ref, values=AVAILABLE_LOCAL_MODELS, width=150, font=gui_layout.FONT_NORMAL) # Normal font
+        self.tab_local_ref.columnconfigure(1, weight=0) # Whisper Model Combobox column
+        self.tab_local_ref.columnconfigure(2, weight=1) # FFMPEG Status column (allow expansion?)
+
+        # --- Row 0: Whisper Model and FFMPEG Status ---
+        self.model_label = ctk.CTkLabel(self.tab_local_ref, text=tr("label_model_whisper"), font=gui_layout.FONT_BOLD)
+        self.model_label.grid(row=0, column=0, padx=10, pady=(5,5), sticky="w") # Keep in column 0
+
+        self.model_combobox = ctk.CTkComboBox(self.tab_local_ref, values=AVAILABLE_LOCAL_MODELS, width=150, font=gui_layout.FONT_NORMAL)
         self.model_combobox.set(self.config.get("local_model", DEFAULT_LOCAL_MODEL))
-        self.model_combobox.grid(row=0, column=1, padx=5, pady=(5,5), sticky="w") # Reduced pady
+        self.model_combobox.grid(row=0, column=1, padx=5, pady=(5,5), sticky="w") # Keep in column 1
+
+        # --- FFMPEG Status Section (Moved to Row 0, Column 2) ---
+        # Create the frame for the FFMPEG status elements
+        ffmpeg_status_frame = ctk.CTkFrame(self.tab_local_ref, fg_color="transparent")
+        # Place this frame next to the model combobox in the same row
+        ffmpeg_status_frame.grid(row=0, column=2, padx=(15, 10), pady=(5,5), sticky="w") # Added left padding (15)
+
+        # Indicator Light (packed inside the frame)
+        self.ffmpeg_indicator_light = ctk.CTkFrame(ffmpeg_status_frame, width=15, height=15, fg_color="grey", corner_radius=10)
+        self.ffmpeg_indicator_light.pack(side="left", padx=(0, 5)) # Pack left
+
+        # Status Label (packed inside the frame)
+        self.ffmpeg_status_label = ctk.CTkLabel(ffmpeg_status_frame, text=tr("label_ffmpeg_status_checking"), font=gui_layout.FONT_NORMAL)
+        self.ffmpeg_status_label.pack(side="left", padx=(0, 10)) # Pack left
+
+        # Download Button (packed inside the frame, managed by pack_forget/pack later)
+        self.ffmpeg_download_button = ctk.CTkButton(
+            ffmpeg_status_frame,
+            text=tr("button_download_ffmpeg"),
+            font=gui_layout.FONT_NORMAL,
+            fg_color="#28A745",       # Green background
+            hover_color="#218838",    # Darker green on hover
+            command=lambda: _open_link(FFMPEG_DOWNLOAD_URL)
+        )
 
         # OpenAI Tab
         self.tab_openai_ref.columnconfigure(1, weight=1)
@@ -409,7 +440,7 @@ class WhisperGUI(ctk.CTk):
 
     def _create_right_panel(self, parent_frame):
         """ Creates the right-side panel (shorter). """
-        self.right_panel = ctk.CTkFrame(parent_frame, fg_color="#e6e6e6", width=160)    # Fixed width for the right panel
+        self.right_panel = ctk.CTkFrame(parent_frame, width=160)    # Fixed width for the right panel
         gui_layout.apply_right_panel_layout(self.right_panel)   # Apply layout to the right panel
         self.right_panel.grid(row=0, column=1, padx=gui_layout.RIGHT_PANEL_PAD[0], pady=gui_layout.RIGHT_PANEL_PAD[1], sticky="ns") # Reduced pady
         self.right_panel.columnconfigure(0, weight=1) # Fixed width for the right panel
@@ -471,10 +502,9 @@ class WhisperGUI(ctk.CTk):
         # --- Left Section: Status Text ---
         # Give this frame the default background color
         status_text_frame = ctk.CTkFrame(status_area_frame) # Gets default theme color
-        status_text_frame.grid(row=0, column=0, padx=0, pady=0, sticky="nsew") # No padx between frames
+        status_text_frame.grid(row=0, column=0, padx=(0, 2), pady=0, sticky="nsew") # No padx between frames
         status_text_frame.columnconfigure(0, weight=1)
         status_text_frame.rowconfigure(0, weight=1)
-
         self.status_label = ctk.CTkLabel(status_text_frame, text="...", anchor="w", font=gui_layout.FONT_NORMAL) # Normal font
         self.status_label.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
 
@@ -486,10 +516,49 @@ class WhisperGUI(ctk.CTk):
         selectors_frame.columnconfigure(1, weight=0)
         selectors_frame.columnconfigure(2, weight=0)
         selectors_frame.columnconfigure(3, weight=0)
+        label_padx = (5, 2) # Reduced horizontal padding for labels
+        menu_padx = (0, 10) # Reduced horizontal padding after menus
+        for i in range(8):
+            selectors_frame.columnconfigure(i, weight=0)
+        
+        for col in range(0, 9):
+            selectors_frame.grid_columnconfigure(col, pad=1)
+        
+        # --- Appearance Mode Selector ---
+        self.appearance_mode_label = ctk.CTkLabel(selectors_frame, text=tr("label_appearance_mode"), font=gui_layout.FONT_NORMAL)
+        self.appearance_mode_label.grid(row=0, column=0, padx=(5, 5), pady=5, sticky="e") # Column 0
+        current_appearance_mode = self.config.get("appearance_mode", DEFAULT_APPEARANCE_MODE)
+        if current_appearance_mode not in AVAILABLE_APPEARANCE_MODES:
+            current_appearance_mode = DEFAULT_APPEARANCE_MODE
+        self.appearance_mode_optionmenu = ctk.CTkOptionMenu(
+            selectors_frame,
+            values=AVAILABLE_APPEARANCE_MODES,
+            command=self._on_appearance_mode_change, # New callback
+            width=85,
+            font=gui_layout.FONT_NORMAL
+        )
+        self.appearance_mode_optionmenu.set(current_appearance_mode)
+        self.appearance_mode_optionmenu.grid(row=0, column=1, padx=(0, 5), pady=5, sticky="e") # Column 1
+        
+        # --- Color Theme Selector ---
+        self.color_theme_label = ctk.CTkLabel(selectors_frame, text=tr("label_color_theme"), font=gui_layout.FONT_NORMAL)
+        self.color_theme_label.grid(row=0, column=2, padx=(5, 5), pady=5, sticky="e") # Column 2
+        current_color_theme = self.config.get("color_theme", DEFAULT_COLOR_THEME)
+        if current_color_theme not in AVAILABLE_COLOR_THEMES and not current_color_theme.lower().endswith(".json"):
+            current_color_theme = DEFAULT_COLOR_THEME
+        self.color_theme_optionmenu = ctk.CTkOptionMenu(
+            selectors_frame,
+            values=AVAILABLE_COLOR_THEMES,
+            command=self._on_color_theme_change, # New callback
+            width=100,
+            font=gui_layout.FONT_NORMAL
+        )
+        self.color_theme_optionmenu.set(current_color_theme)
+        self.color_theme_optionmenu.grid(row=0, column=3, padx=(0, 5), pady=5, sticky="e") # Column 3
 
         # Language Selector
         self.language_ui_label = ctk.CTkLabel(selectors_frame, text=tr("label_language_ui"), font=gui_layout.FONT_NORMAL) # Normal font
-        self.language_ui_label.grid(row=0, column=0, padx=(10, 2), pady=5, sticky="e")
+        self.language_ui_label.grid(row=0, column=4, padx=(5, 5), pady=5, sticky="e") # Column 4
         language_options = list(self.available_languages.values()) if self.available_languages else ["N/A"]
         current_display_language = self.available_languages.get(self.current_lang_code, "??")
         self.language_optionmenu = ctk.CTkOptionMenu( selectors_frame, values=language_options, command=self._on_language_change, width=110, font=gui_layout.FONT_NORMAL ) # Normal font
@@ -499,11 +568,11 @@ class WhisperGUI(ctk.CTk):
             elif language_options and language_options != ["N/A"]: current_display_language = language_options[0]
             else: current_display_language = "Error"
         self.language_optionmenu.set(current_display_language)
-        self.language_optionmenu.grid(row=0, column=1, padx=(0, 15), pady=5, sticky="e")
+        self.language_optionmenu.grid(row=0, column=5, padx=(0, 5), pady=5, sticky="e") # Column 5
 
         # Log Level Selector
         self.log_level_label = ctk.CTkLabel(selectors_frame, text=tr("label_log_level"), font=gui_layout.FONT_NORMAL) # Normal font
-        self.log_level_label.grid(row=0, column=2, padx=(10, 2), pady=5, sticky="e")
+        self.log_level_label.grid(row=0, column=7, padx=(5, 5), pady=0, sticky="e") # Column 6
         level_display_options = list(self.log_level_display_names.values())
         current_log_level_str = self.config.get("log_level", DEFAULT_LOG_LEVEL)
         current_log_level_display = self.log_level_display_names.get(current_log_level_str, tr("log_level_info"))
@@ -511,7 +580,7 @@ class WhisperGUI(ctk.CTk):
         if current_log_level_display not in level_display_options:
             current_log_level_display = self.log_level_display_names.get(DEFAULT_LOG_LEVEL, tr("log_level_info"))
         self.log_level_optionmenu.set(current_log_level_display)
-        self.log_level_optionmenu.grid(row=0, column=3, padx=(0, 10), pady=5, sticky="e")
+        self.log_level_optionmenu.grid(row=0, column=6, padx=0, pady=5, sticky="e") # Column 7
 
     def _update_initial_service_indicators(self):
         """Sets the initial color of service indicators based on config."""
@@ -524,9 +593,35 @@ class WhisperGUI(ctk.CTk):
                 self.sb_indicator_light.configure(fg_color="green" if sb_enabled else "grey")
         except Exception as e:
             logger.warning(f"Could not update initial service indicators: {e}")
+            
+            
+    def _update_ffmpeg_status(self):
+        """Checks FFMPEG path and updates the GUI elements."""
+        logger.debug("Checking FFMPEG status...")
+        ffmpeg_path = check_ffmpeg_path() # Call the utility function
 
-### start
-# --- Rest of the methods (Callbacks, Logic, etc.) ---
+        try:
+            if ffmpeg_path:
+                # FFMPEG Found
+                self.ffmpeg_indicator_light.configure(fg_color="green")
+                self.ffmpeg_status_label.configure(text=tr("label_ffmpeg_status_found")) # Add key
+                self.ffmpeg_download_button.pack_forget() # Hide button
+                logger.debug("FFMPEG found, GUI updated (Green).")
+            else:
+                # FFMPEG Not Found
+                self.ffmpeg_indicator_light.configure(fg_color="red")
+                self.ffmpeg_status_label.configure(text=tr("label_ffmpeg_status_not_found")) # Add key
+                # Show the download button
+                self.ffmpeg_download_button.pack(side="left", padx=(10, 0), pady=0)
+                logger.debug("FFMPEG not found, GUI updated (Red, Button shown).")
+        except tk.TclError:
+            logger.warning("TCL error updating FFMPEG status (GUI closing?).")
+        except AttributeError:
+            logger.warning("Attribute error updating FFMPEG status (widgets not ready?).")
+        except Exception as e:
+            logger.error(f"Unexpected error updating FFMPEG status UI: {e}")
+
+    # --- Rest of the methods (Callbacks, Logic, etc.) ---
     # Keep methods from _load_initial_gui_data to on_closing unchanged
     # Ensure all self.widget references are correct based on the creation methods above.
     # ...
@@ -638,10 +733,45 @@ class WhisperGUI(ctk.CTk):
                 # Using new tr key for log message
                 logger.error(tr("log_gui_restore_tab_failed", mode=current_mode, error=e))
                 # Defaulting to the first tab is the fallback behavior if .set() fails
+            self._update_ffmpeg_status()
 
         elif not selected_lang_code:
             logger.error(tr("log_gui_language_code_not_found", language=selected_language_display_name))
-### ende
+
+    def _on_appearance_mode_change(self, new_mode):
+        """Callback when a new appearance mode is selected."""
+        logger.debug(f"Appearance mode change requested: {new_mode}")
+        # Call the function from appearance_manager to apply the change
+        validated_mode = change_appearance_mode(new_mode) # Function imported from appearance_manager
+        if validated_mode:
+            # Update the in-memory config if the mode was applied successfully
+            self.config["appearance_mode"] = validated_mode
+            logger.info(f"Appearance mode set to {validated_mode} and config updated.")
+            # Configuration is saved automatically on close or language change
+            # No immediate save needed here
+        else:
+            # Optionally reset the dropdown if validation/setting failed
+            current_mode_in_config = self.config.get("appearance_mode", DEFAULT_APPEARANCE_MODE)
+            try: self.appearance_mode_optionmenu.set(current_mode_in_config)
+            except Exception as e: logger.error(f"Failed to reset appearance mode menu: {e}")
+
+
+    def _on_color_theme_change(self, new_theme):
+        """Callback when a new color theme is selected."""
+        logger.debug(f"Color theme change requested: {new_theme}")
+        # Call the function from appearance_manager to apply the change
+        validated_theme = change_color_theme(new_theme) # Function imported from appearance_manager
+        if validated_theme:
+            # Update the in-memory config if the theme was applied successfully
+            self.config["color_theme"] = validated_theme
+            logger.info(f"Color theme set to {validated_theme} and config updated. Restart may be needed.")
+            # Optionally update status bar to remind user of restart
+            self._update_status("status_theme_changed_restart", level="warning", is_key=True) # New key needed
+        else:
+            # Optionally reset the dropdown if validation/setting failed
+            current_theme_in_config = self.config.get("color_theme", DEFAULT_COLOR_THEME)
+            try: self.color_theme_optionmenu.set(current_theme_in_config)
+            except Exception as e: logger.error(f"Failed to reset color theme menu: {e}")
 
     def _on_log_level_change(self, selected_level_display_name):
         """Called when a new log level is selected."""
@@ -783,6 +913,11 @@ class WhisperGUI(ctk.CTk):
             self.language_optionmenu.configure(font=gui_layout.FONT_NORMAL) # Apply font
             self.log_level_label.configure(text=tr("label_log_level"), font=gui_layout.FONT_NORMAL)
             self.log_level_optionmenu.configure(font=gui_layout.FONT_NORMAL) # Apply font
+            # --- Configure Appearance/Theme Selectors ---
+            self.appearance_mode_label.configure(text=tr("label_appearance_mode"), font=gui_layout.FONT_NORMAL)
+            self.appearance_mode_optionmenu.configure(font=gui_layout.FONT_NORMAL) # Apply font
+            self.color_theme_label.configure(text=tr("label_color_theme"), font=gui_layout.FONT_NORMAL)
+            self.color_theme_optionmenu.configure(font=gui_layout.FONT_NORMAL) # Apply font
 
 
         except AttributeError as e:
@@ -1423,6 +1558,8 @@ class WhisperGUI(ctk.CTk):
                 "stt_prefix": self.stt_prefix_entry.get(),
                 "replacement_botname": self.replacement_botname_entry.get().strip() # Read value from new entry
             }
+            config_dict["appearance_mode"] = self.config.get("appearance_mode", DEFAULT_APPEARANCE_MODE)
+            config_dict["color_theme"] = self.config.get("color_theme", DEFAULT_COLOR_THEME)
             # Perform quick sanity checks on numeric conversions again
             # CORRECTED INDENTATION: These lines are now at the same level as config_dict assignment
             float(config_dict["min_buffer_duration"])

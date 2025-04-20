@@ -36,12 +36,16 @@ try:
     from lib.utils import load_or_generate_key, get_base_path
     from lib.config_manager import load_config
     from lib.gui import WhisperGUI
-    # Import new/changed functions from language_manager
     from lib.language_manager import (
         set_current_language, load_language, tr,
         scan_languages, # Import scan function
         discovered_languages # Import the global dict to check if empty later
     )
+    from lib.appearance_manager import apply_initial_appearance
+except ImportError as e:
+    print(f"Critical import error in main.py: {e}")
+    print("Make sure you're running from the correct directory")
+    sys.exit(1)
 except ImportError as e:
     print(f"Critical import error in main.py: {e}")
     print("Make sure you're running from the correct directory")
@@ -244,8 +248,12 @@ def main():
         print(f"Discovered languages: {list(final_discovered_langs.keys())}")
 
     # --- Load configuration ---
-    # load_config now logs internally
     app_config = load_config(config_file_path, encryption_key)
+    try:
+        apply_initial_appearance(app_config)
+    except Exception as e:
+        # Log even if logger isn't fully set? Or just print. Print is safer here.
+        print(f"ERROR: Failed to apply initial appearance settings: {e}")   
 
     # --- Initialize Logging with Level from Config ---
     initial_log_level_str = app_config.get("log_level", DEFAULT_LOG_LEVEL)

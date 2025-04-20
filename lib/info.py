@@ -32,7 +32,7 @@ except ImportError as e:
 
 # --- Constants ---
 REPO_URL = "https://github.com/happytunesai/EZ-STT-Logger-GUI"
-ADDON_URL = "https://github.com/happytunesai/PNGTuber-GPT"
+ADDON_URL = "https://github.com/happytunesai/PNGTuber-GPT-WS"
 GITHUB_API_URL = f"https://api.github.com/repos/happytunesai/EZ-STT-Logger-GUI/releases/latest"
 GITHUB_RELEASES_URL = f"https://github.com/happytunesai/EZ-STT-Logger-GUI/releases"
 

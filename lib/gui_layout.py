@@ -18,8 +18,8 @@ FONT_BOLD   = (DEFAULT_FONT_FAMILY, HEADING_FONT_SIZE, "bold")
 
 # --- Height constants (in pixels) ---
 TABVIEW_MAX_HEIGHT = 200
-CONFIG_CONTROL_HEIGHT = 222  # adjusted to match desired middle box height
-RIGHT_PANEL_HEIGHT = 217     # match new config height
+CONFIG_CONTROL_HEIGHT = 225  # adjusted to match desired middle box height
+RIGHT_PANEL_HEIGHT = 215    # match new config height
 STATUS_BAR_HEIGHT = 34
 
 # --- Padding tuples ---

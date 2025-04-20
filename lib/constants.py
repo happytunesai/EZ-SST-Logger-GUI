@@ -20,6 +20,7 @@ FILTER_FILE_EL = os.path.join(FILTER_DIR, "filter_patterns_el.txt")
 REPLACEMENTS_FILE = os.path.join(FILTER_DIR, "replacements.json")
 ICON_FILE = "logo.ico"
 DEFAULT_TRANSCRIPTION_FILE = "transcription_log.txt"
+FFMPEG_DOWNLOAD_URL = "https://ffmpeg.org/download.html"
 
 # --- Languages ---
 DEFAULT_LANGUAGE = "en" # Fallback language code if detection or config fails
@@ -42,9 +43,38 @@ LOG_LEVEL_NAMES = list(LOG_LEVELS.keys())
 WEBSOCKET_PORT = 8765
 DEFAULT_STREAMERBOT_WS_URL = "ws://127.0.0.1:1337/" # User's port from log
 DEFAULT_REPLACEMENT_BOTNAME = "BotnameXY" # Default name for context menu replacement
+
+# --- Appearance Settings ---
+DEFAULT_APPEARANCE_MODE = "Dark"  # Options: "System", "Light", "Dark"
+DEFAULT_COLOR_THEME = "pink"      # Options: "blue", "green", "dark-blue", or path/to/theme.json
+AVAILABLE_APPEARANCE_MODES = ["System", "Light", "Dark"]
+# In lib/constants.py
+
+AVAILABLE_COLOR_THEMES = [ # themes form https://github.com/a13xe/CTkThemesPack?tab=readme-ov-file
+    "autumn",
+    "blue",          # Default theme
+    "breeze",
+    "carrot",
+    "cherry",
+    "coffee",
+    "dark-blue",     # Default theme
+    "green",         # Default theme
+    "lavender",
+    "marsh",
+    "metal",
+    "midnight",
+    "orange",
+    "patina",
+    "pink",
+    "rime",
+    "rose",
+    "sky",
+    "violet",
+    "yellow"
+]
 # --- Default values & configuration ---
 DEFAULT_STT_PREFIX = "StreamerXY speaks: " # User's prefix from log
-APP_VERSION = "1.1.7" # Updated version
+APP_VERSION = "1.1.8" # Updated version
 DEFAULT_SAMPLERATE = 16000
 DEFAULT_CHANNELS = 1
 DEFAULT_ENERGY_THRESHOLD = 50
