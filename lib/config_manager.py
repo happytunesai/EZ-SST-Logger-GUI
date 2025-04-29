@@ -17,8 +17,9 @@ try:
         DEFAULT_SILENCE_SEC, DEFAULT_ELEVENLABS_MODEL, WEBSOCKET_PORT,
         DEFAULT_STREAMERBOT_WS_URL, DEFAULT_STT_PREFIX,
         DEFAULT_LANGUAGE,
-        DEFAULT_LOG_LEVEL,DEFAULT_REPLACEMENT_BOTNAME, LOG_LEVEL_NAMES,
-        CONFIG_DIR # Needed for relative path construction
+        DEFAULT_LOG_LEVEL, DEFAULT_REPLACEMENT_BOTNAME, LOG_LEVEL_NAMES,
+        CONFIG_DIR, DEFAULT_USE_VAD, DEFAULT_VAD_THRESHOLD,DEFAULT_OPENAI_MODEL,
+        DEFAULT_VAD_MIN_SILENCE_MS, DEFAULT_VAD_MIN_SPEECH_MS
     )
     from lib.logger_setup import logger
     # Import translation function
@@ -52,6 +53,10 @@ except ImportError as e:
     WEBSOCKET_PORT = 8765
     DEFAULT_STREAMERBOT_WS_URL = "ws://127.0.0.1:1337/"
     DEFAULT_STT_PREFIX = "Bot speaks: "
+    DEFAULT_USE_VAD = False
+    DEFAULT_VAD_THRESHOLD = 0.5
+    DEFAULT_VAD_MIN_SILENCE_MS = 500
+    DEFAULT_VAD_MIN_SPEECH_MS = 250
 
 
 def load_config(config_path_relative, key):
@@ -75,6 +80,7 @@ def load_config(config_path_relative, key):
         "elevenlabs_api_key_encrypted": None, # Will be replaced by plain text after loading (if decrypted)
         "mic_name": None,
         "local_model": DEFAULT_LOCAL_MODEL,
+        "openai_model": DEFAULT_OPENAI_MODEL,
         "language": "",
         "language_ui": DEFAULT_LANGUAGE,
         "log_level": DEFAULT_LOG_LEVEL,
@@ -90,7 +96,11 @@ def load_config(config_path_relative, key):
         "streamerbot_ws_enabled": False,
         "streamerbot_ws_url": DEFAULT_STREAMERBOT_WS_URL,
         "stt_prefix": DEFAULT_STT_PREFIX,
-        "replacement_botname": DEFAULT_REPLACEMENT_BOTNAME
+        "replacement_botname": DEFAULT_REPLACEMENT_BOTNAME,
+        "use_vad": DEFAULT_USE_VAD,
+        "vad_threshold": DEFAULT_VAD_THRESHOLD,
+        "vad_min_silence_ms": DEFAULT_VAD_MIN_SILENCE_MS,
+        "vad_min_speech_ms": DEFAULT_VAD_MIN_SPEECH_MS
     }
     config = defaults.copy()
 
@@ -152,7 +162,26 @@ def load_config(config_path_relative, key):
         config.pop("openai_api_key_encrypted", None)
         config.pop("elevenlabs_api_key_encrypted", None)
         # --- End Decryption ---
+        config["use_vad"] = bool(config.get("use_vad", DEFAULT_USE_VAD))
+        config["vad_threshold"] = float(config.get("vad_threshold", DEFAULT_VAD_THRESHOLD))
+        config["vad_min_silence_ms"] = int(config.get("vad_min_silence_ms", DEFAULT_VAD_MIN_SILENCE_MS))
+        config["vad_min_speech_ms"] = int(config.get("vad_min_speech_ms", DEFAULT_VAD_MIN_SPEECH_MS))
+        # Validate existing types as well
+        config["min_buffer_duration"] = float(config.get("min_buffer_duration", DEFAULT_MIN_BUFFER_SEC))
+        config["silence_threshold"] = float(config.get("silence_threshold", DEFAULT_SILENCE_SEC))
+        config["websocket_port"] = int(config.get("websocket_port", WEBSOCKET_PORT))
+        config["clear_log_on_start"] = bool(config.get("clear_log_on_start", False))
+        config["filter_parentheses"] = bool(config.get("filter_parentheses", True))
+        config["websocket_enabled"] = bool(config.get("websocket_enabled", False))
+        config["streamerbot_ws_enabled"] = bool(config.get("streamerbot_ws_enabled", False))
 
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Config type conversion error: {e}. Using defaults for failed keys.")
+        # Re-apply defaults selectively if conversion fails
+        if not isinstance(config.get("use_vad"), bool): config["use_vad"] = DEFAULT_USE_VAD
+        if not isinstance(config.get("vad_threshold"), (int, float)): config["vad_threshold"] = DEFAULT_VAD_THRESHOLD
+        if not isinstance(config.get("vad_min_silence_ms"), int): config["vad_min_silence_ms"] = DEFAULT_VAD_MIN_SILENCE_MS
+        if not isinstance(config.get("vad_min_speech_ms"), int): config["vad_min_speech_ms"] = DEFAULT_VAD_MIN_SPEECH_MS
         logger.info(tr("log_config_loaded"))
 
     except (json.JSONDecodeError, IOError) as e:
@@ -243,7 +272,19 @@ def save_config(config_path_relative, config_dict, key):
         config_to_save["silence_threshold"] = float(config_to_save.get("silence_threshold", DEFAULT_SILENCE_SEC))
         # Ensure port is saved as an integer
         config_to_save["websocket_port"] = int(config_to_save.get("websocket_port", WEBSOCKET_PORT))
-
+        # Ensure VAD fields are saved with correct types
+        config_to_save["use_vad"] = bool(config_to_save.get("use_vad", DEFAULT_USE_VAD))
+        config_to_save["vad_threshold"] = float(config_to_save.get("vad_threshold", DEFAULT_VAD_THRESHOLD))
+        config_to_save["vad_min_silence_ms"] = int(config_to_save.get("vad_min_silence_ms", DEFAULT_VAD_MIN_SILENCE_MS))
+        config_to_save["vad_min_speech_ms"] = int(config_to_save.get("vad_min_speech_ms", DEFAULT_VAD_MIN_SPEECH_MS))
+        # Validate existing fields
+        config_to_save["min_buffer_duration"] = float(config_to_save.get("min_buffer_duration", DEFAULT_MIN_BUFFER_SEC))
+        config_to_save["silence_threshold"] = float(config_to_save.get("silence_threshold", DEFAULT_SILENCE_SEC))
+        config_to_save["websocket_port"] = int(config_to_save.get("websocket_port", WEBSOCKET_PORT))
+        config_to_save["clear_log_on_start"] = bool(config_to_save.get("clear_log_on_start", False))
+        config_to_save["filter_parentheses"] = bool(config_to_save.get("filter_parentheses", True))
+        config_to_save["websocket_enabled"] = bool(config_to_save.get("websocket_enabled", False))
+        config_to_save["streamerbot_ws_enabled"] = bool(config_to_save.get("streamerbot_ws_enabled", False))
         # Validate log level
         log_level_to_save = config_to_save.get("log_level")
         if log_level_to_save not in LOG_LEVEL_NAMES:
@@ -266,6 +307,13 @@ def save_config(config_path_relative, config_dict, key):
         config_to_save["silence_threshold"] = DEFAULT_SILENCE_SEC
         config_to_save["websocket_port"] = WEBSOCKET_PORT
         config_to_save["log_level"] = DEFAULT_LOG_LEVEL
+        # Revert to defaults ONLY for failed conversions if possible, or all for safety
+        config_to_save["use_vad"] = DEFAULT_USE_VAD
+        config_to_save["vad_threshold"] = DEFAULT_VAD_THRESHOLD
+        config_to_save["vad_min_silence_ms"] = DEFAULT_VAD_MIN_SILENCE_MS
+        config_to_save["vad_min_speech_ms"] = DEFAULT_VAD_MIN_SPEECH_MS
+        config_to_save["min_buffer_duration"] = DEFAULT_MIN_BUFFER_SEC
+        return False
         # Language should already exist, but just in case:
         if "language_ui" not in config_to_save: config_to_save["language_ui"] = DEFAULT_LANGUAGE
 

@@ -33,9 +33,12 @@ try:
         DEFAULT_ELEVENLABS_MODEL, WEBSOCKET_PORT, DEFAULT_STREAMERBOT_WS_URL,
         DEFAULT_STT_PREFIX, FILTER_FILE, FILTER_FILE_EL, REPLACEMENTS_FILE,
         CONFIG_FILE, DEFAULT_SAMPLERATE, DEFAULT_CHANNELS, DEFAULT_ENERGY_THRESHOLD,
-        DEFAULT_TRANSCRIPTION_FILE, DEFAULT_LANGUAGE, CONFIG_DIR, DEFAULT_REPLACEMENT_BOTNAME,
+        DEFAULT_TRANSCRIPTION_FILE, DEFAULT_LANGUAGE, DEFAULT_REPLACEMENT_BOTNAME,
         LOG_LEVELS, LOG_LEVEL_NAMES, DEFAULT_LOG_LEVEL, AVAILABLE_APPEARANCE_MODES, AVAILABLE_COLOR_THEMES,
-        DEFAULT_APPEARANCE_MODE, DEFAULT_COLOR_THEME
+        DEFAULT_APPEARANCE_MODE, DEFAULT_COLOR_THEME, AVAILABLE_OPENAI_MODELS,DEFAULT_OPENAI_MODEL,
+        # Import VAD constants
+        DEFAULT_USE_VAD, DEFAULT_VAD_THRESHOLD, DEFAULT_VAD_MIN_SILENCE_MS,
+        DEFAULT_VAD_MIN_SPEECH_MS # Import if needed later
     )
     from lib.utils import list_audio_devices_for_gui
     from lib.text_processing import (
@@ -46,26 +49,29 @@ try:
     from lib.config_manager import save_config
     # Import language functions (tr is the main one used here)
     from lib.language_manager import tr, set_current_language, load_language
-    from lib.constants import APP_VERSION 
+    # from lib.constants import APP_VERSION # Already imported above
     from lib.utils import get_base_path
     from lib.appearance_manager import change_appearance_mode, change_color_theme
-    from lib.constants import ICON_FILE
+    # from lib.constants import ICON_FILE # Already imported above
     from lib.utils import check_ffmpeg_path # Import the new check function
     from lib.constants import FFMPEG_DOWNLOAD_URL # Import the download URL
-    from lib.utils import _open_link 
-    import webbrowser
+    from lib.utils import _open_link
+    # import webbrowser # Not used directly, _open_link handles it
 except ImportError as e:
     print(f"Fatal Error: Could not import necessary libraries. Please ensure 'lib' directory is accessible. Details: {e}")
     # Attempt basic logging if logger failed
     try: logging.basicConfig(level=logging.ERROR); logging.error(f"Import Error: {e}")
     except: pass
     DEFAULT_REPLACEMENT_BOTNAME = "BotnameXY"       # Default bot name for context menu replacement
-    DEFAULT_LANGUAGE = "en" # Fallback language code if detection or config fails  
+    DEFAULT_LANGUAGE = "en" # Fallback language code if detection or config fails
     APP_VERSION = "?.?.?" # Placeholder version
     AVAILABLE_APPEARANCE_MODES = ["System", "Light", "Dark"]
     AVAILABLE_COLOR_THEMES = ["blue", "green", "dark-blue"]
     DEFAULT_APPEARANCE_MODE = "System"
     DEFAULT_COLOR_THEME = "blue"
+    DEFAULT_USE_VAD = False
+    DEFAULT_VAD_THRESHOLD = 0.5
+    DEFAULT_VAD_MIN_SILENCE_MS = 500
     def change_appearance_mode(mode): logger.error("Appearance Manager not available"); return mode
     def change_color_theme(theme): logger.error("Appearance Manager not available"); return theme
     sys.exit(1)
@@ -113,6 +119,7 @@ class WhisperGUI(ctk.CTk):
         self._setup_window()
         self._create_widgets()
         self._load_initial_gui_data()
+        self._on_vad_enable_change() # Call AFTER widgets are created
         self._update_ffmpeg_status()
         self._start_background_tasks()
         self._update_status("status_ready", log=False)
@@ -150,7 +157,7 @@ class WhisperGUI(ctk.CTk):
             logger.debug(f"Attempting to load window icon from: {icon_path}")
             if os.path.exists(icon_path):
                 self.iconbitmap(icon_path)
-                logger.debug("Window icon loaded successfully.")    
+                logger.debug("Window icon loaded successfully.")
             else: logger.warning(tr("log_gui_icon_not_found", icon_file=icon_path))
         except Exception as e: logger.warning(tr("log_gui_icon_error", error=e))
 
@@ -269,7 +276,13 @@ class WhisperGUI(ctk.CTk):
         self.openai_api_key_entry.grid(row=0, column=1, padx=5, pady=(5,5), sticky="ew")
         openai_key = self.config.get("openai_api_key", "") or os.getenv("OPENAI_API_KEY", "")
         if openai_key: self.openai_api_key_entry.insert(0, openai_key)
-
+        # Model Label
+        self.openai_model_label = ctk.CTkLabel(self.tab_openai_ref, text=tr("label_api_model_openai"), font=gui_layout.FONT_BOLD) 
+        self.openai_model_label.grid(row=1, column=0, padx=10, pady=(5,5), sticky="w") # Platziere es in Zeile 1, Spalte 0 des OpenAI Tabs
+        # Model Combobox
+        self.openai_model_combobox = ctk.CTkComboBox(self.tab_openai_ref, values=AVAILABLE_OPENAI_MODELS, width=250, font=gui_layout.FONT_NORMAL) 
+        self.openai_model_combobox.set(self.config.get("openai_model", DEFAULT_OPENAI_MODEL))
+        self.openai_model_combobox.grid(row=1, column=1, padx=5, pady=(5,5), sticky="w") 
         # ElevenLabs Tab
         self.tab_elevenlabs_ref.columnconfigure(1, weight=1)
         self.elevenlabs_api_key_label = ctk.CTkLabel(self.tab_elevenlabs_ref, text=tr("label_api_key_elevenlabs"), font=gui_layout.FONT_BOLD) # Bold
@@ -342,6 +355,7 @@ class WhisperGUI(ctk.CTk):
             logger.debug(tr("log_gui_info_tab_created"))
         except Exception as e:
             logger.error(tr("log_gui_info_tab_create_error", error=e), exc_info=True)
+
     def _set_initial_tab(self):
         """Sets the initially selected tab based on configuration."""
         initial_mode = self.config.get("mode", "local")
@@ -388,55 +402,92 @@ class WhisperGUI(ctk.CTk):
         self.language_entry.grid(row=0, column=1, padx=5, pady=3, sticky="w")
 
     def _create_output_config_section(self, parent_frame):
-        """ Creates the Format, Output File, Buffers config block (shorter). """
+        """ Creates the Format, Output File, Buffers & VAD config block. """
+        # Main frame for this section
         output_config_frame = ctk.CTkFrame(parent_frame, fg_color="transparent")
-        output_config_frame.grid(row=2, column=0, padx=0, pady=gui_layout.CONFIG_PAD_VERTICAL, sticky="ew") # Reduced bottom pady
-        output_config_frame.columnconfigure(1, weight=1)
+        output_config_frame.grid(row=2, column=0, padx=0, pady=gui_layout.CONFIG_PAD_VERTICAL, sticky="ew")
+        output_config_frame.columnconfigure(1, weight=1) # Allow filepath entry to expand
 
         # --- Row 0: Format ---
-        self.format_label = ctk.CTkLabel(output_config_frame, text=tr("label_format"), font=gui_layout.FONT_BOLD) # Bold
-        self.format_label.grid(row=0, column=0, padx=(0,5), pady=1, sticky="w") # Reduced pady
+        self.format_label = ctk.CTkLabel(output_config_frame, text=tr("label_format"), font=gui_layout.FONT_BOLD)
+        self.format_label.grid(row=0, column=0, padx=(0,5), pady=1, sticky="w")
 
         format_radio_frame = ctk.CTkFrame(output_config_frame, fg_color="transparent")
-        format_radio_frame.grid(row=0, column=1, columnspan=3, padx=5, pady=0, sticky="w") # Reduced pady
+        format_radio_frame.grid(row=0, column=1, columnspan=3, padx=5, pady=0, sticky="w")
 
         self.format_var = ctk.StringVar(value=self.config.get("output_format", DEFAULT_OUTPUT_FORMAT))
-        self.txt_radio = ctk.CTkRadioButton(format_radio_frame, text=tr("radio_format_txt"), variable=self.format_var, value="txt", font=gui_layout.FONT_NORMAL) # Normal font
+        self.txt_radio = ctk.CTkRadioButton(format_radio_frame, text=tr("radio_format_txt"), variable=self.format_var, value="txt", font=gui_layout.FONT_NORMAL)
         self.txt_radio.pack(side="left", padx=(0, 15))
-        self.json_radio = ctk.CTkRadioButton(format_radio_frame, text=tr("radio_format_json"), variable=self.format_var, value="json", font=gui_layout.FONT_NORMAL) # Normal font
+        self.json_radio = ctk.CTkRadioButton(format_radio_frame, text=tr("radio_format_json"), variable=self.format_var, value="json", font=gui_layout.FONT_NORMAL)
         self.json_radio.pack(side="left")
 
         # --- Row 1: Output File ---
-        self.output_file_label = ctk.CTkLabel(output_config_frame, text=tr("label_output_file"), font=gui_layout.FONT_BOLD) # Bold
+        self.output_file_label = ctk.CTkLabel(output_config_frame, text=tr("label_output_file"), font=gui_layout.FONT_BOLD)
         self.output_file_label.grid(row=1, column=0, padx=(0,5), pady=1, sticky="w")
 
-        self.filepath_entry = ctk.CTkEntry( output_config_frame, placeholder_text=tr("placeholder_output_file", filename=DEFAULT_TRANSCRIPTION_FILE), font=gui_layout.FONT_NORMAL ) # Normal font
+        self.filepath_entry = ctk.CTkEntry( output_config_frame, placeholder_text=tr("placeholder_output_file", filename=DEFAULT_TRANSCRIPTION_FILE), font=gui_layout.FONT_NORMAL )
         saved_path = self.config.get("output_filepath", "")
         self.filepath_entry.insert(0, saved_path if saved_path else DEFAULT_TRANSCRIPTION_FILE)
         self.filepath_entry.grid(row=1, column=1, padx=5, pady=1, sticky="ew")
 
-        self.browse_button = ctk.CTkButton(output_config_frame, text=tr("button_browse"), width=80, command=self._browse_output_file, font=gui_layout.FONT_NORMAL) # Normal font
+        self.browse_button = ctk.CTkButton(output_config_frame, text=tr("button_browse"), width=80, command=self._browse_output_file, font=gui_layout.FONT_NORMAL)
         self.browse_button.grid(row=1, column=2, padx=(5,0), pady=1, sticky="e")
 
-        # --- Row 2: Buffers ---
+        # --- Row 2: Traditional Buffers/Silence ---
         buffer_silence_frame = ctk.CTkFrame(output_config_frame, fg_color="transparent")
-        buffer_silence_frame.grid(row=2, column=0, columnspan=3, padx=0, pady=1, sticky="ew") # Reduced pady
+        buffer_silence_frame.grid(row=2, column=0, columnspan=3, padx=0, pady=1, sticky="ew")
 
-        self.min_buffer_label = ctk.CTkLabel(buffer_silence_frame, text=tr("label_min_buffer"), font=gui_layout.FONT_BOLD) # Bold
+        self.min_buffer_label = ctk.CTkLabel(buffer_silence_frame, text=tr("label_min_buffer"), font=gui_layout.FONT_BOLD)
         self.min_buffer_label.pack(side="left", padx=(0,5))
-        self.min_buffer_entry = ctk.CTkEntry(buffer_silence_frame, width=60, font=gui_layout.FONT_NORMAL) # Normal font
+        self.min_buffer_entry = ctk.CTkEntry(buffer_silence_frame, width=60, font=gui_layout.FONT_NORMAL)
         self.min_buffer_entry.insert(0, str(self.config.get("min_buffer_duration", DEFAULT_MIN_BUFFER_SEC)))
         self.min_buffer_entry.pack(side="left", padx=(0, 20))
-        self.silence_label = ctk.CTkLabel(buffer_silence_frame, text=tr("label_silence_threshold"), font=gui_layout.FONT_BOLD) # Bold
+
+        self.silence_label = ctk.CTkLabel(buffer_silence_frame, text=tr("label_silence_threshold"), font=gui_layout.FONT_BOLD)
         self.silence_label.pack(side="left", padx=(0,5))
-        self.silence_threshold_entry = ctk.CTkEntry(buffer_silence_frame, width=60, font=gui_layout.FONT_NORMAL) # Normal font
+        self.silence_threshold_entry = ctk.CTkEntry(buffer_silence_frame, width=60, font=gui_layout.FONT_NORMAL)
         self.silence_threshold_entry.insert(0, str(self.config.get("silence_threshold", DEFAULT_SILENCE_SEC)))
         self.silence_threshold_entry.pack(side="left")
 
-        # --- Row 3: Clear Log Checkbox ---
-        self.clear_log_checkbox = ctk.CTkCheckBox(output_config_frame, text=tr("checkbox_clear_log"), font=gui_layout.FONT_NORMAL) # Normal font
-        if self.config.get("clear_log_on_start", False): self.clear_log_checkbox.select()
-        self.clear_log_checkbox.grid(row=3, column=1, columnspan=2, padx=5, pady=(3, 3), sticky="w") # Reduced pady
+        # --- Row 3: VAD Controls (Checkbox and Settings in one horizontal frame) ---
+        vad_control_frame = ctk.CTkFrame(output_config_frame, fg_color="transparent")
+        # Use grid for the frame itself, spanning columns
+        vad_control_frame.grid(row=3, column=0, columnspan=3, padx=0, pady=(5, 2), sticky="ew")
+
+        # VAD Enable Checkbox (Packed Left in the frame)
+        self.vad_enable_checkbox = ctk.CTkCheckBox(
+            vad_control_frame, # Parent is the new horizontal frame
+            text=tr("checkbox_use_vad"), # Needs new key
+            font=gui_layout.FONT_NORMAL,
+            command=self._on_vad_enable_change # Assign the callback
+        )
+        initial_vad_state = self.config.get("use_vad", DEFAULT_USE_VAD)
+        if initial_vad_state:
+            self.vad_enable_checkbox.select()
+        else:
+            self.vad_enable_checkbox.deselect()
+        # Pack the checkbox to the left
+        self.vad_enable_checkbox.pack(side="left", padx=(10, 15)) # Indent slightly, add space after
+
+        # VAD Threshold Label & Entry (Packed Left in the frame)
+        self.vad_threshold_label = ctk.CTkLabel(vad_control_frame, text=tr("label_vad_threshold"), font=gui_layout.FONT_BOLD) # Needs new key
+        self.vad_threshold_label.pack(side="left", padx=(0, 5))
+        self.vad_threshold_entry = ctk.CTkEntry(vad_control_frame, width=60, font=gui_layout.FONT_NORMAL)
+        self.vad_threshold_entry.insert(0, str(self.config.get("vad_threshold", DEFAULT_VAD_THRESHOLD)))
+        self.vad_threshold_entry.pack(side="left", padx=(0, 20)) # Add space after
+
+        # VAD Min Silence Duration Label & Entry (Packed Left in the frame)
+        self.vad_min_silence_label = ctk.CTkLabel(vad_control_frame, text=tr("label_vad_min_silence"), font=gui_layout.FONT_BOLD) # Needs new key
+        self.vad_min_silence_label.pack(side="left", padx=(0, 5))
+        self.vad_min_silence_entry = ctk.CTkEntry(vad_control_frame, width=60, font=gui_layout.FONT_NORMAL)
+        self.vad_min_silence_entry.insert(0, str(self.config.get("vad_min_silence_ms", DEFAULT_VAD_MIN_SILENCE_MS)))
+        self.vad_min_silence_entry.pack(side="left") # Pack last element to the left
+
+        # Optional: VAD Min Speech Duration (Commented out as requested)
+        # self.vad_min_speech_label = ctk.CTkLabel(...)
+        # self.vad_min_speech_entry = ctk.CTkEntry(...)
+        # self.vad_min_speech_entry.insert(0, str(self.config.get("vad_min_speech_ms", DEFAULT_VAD_MIN_SPEECH_MS)))
+        # self.vad_min_speech_entry.pack(...)
 
     def _create_right_panel(self, parent_frame):
         """ Creates the right-side panel (shorter). """
@@ -488,8 +539,18 @@ class WhisperGUI(ctk.CTk):
         self.textbox.tag_config("info_tag", foreground="gray")
         self.textbox.bind("<Button-3>", self._show_context_menu)
 
-        self.clear_log_button = ctk.CTkButton(output_area_frame, text=tr("button_clear_output"), command=self._clear_textbox, width=120, font=gui_layout.FONT_NORMAL) # Normal font
-        self.clear_log_button.grid(row=1, column=0, pady=(5,10))
+        # --- Frame for Controls (Button and Checkbox) below Textbox ---
+        button_checkbox_frame = ctk.CTkFrame(output_area_frame, fg_color="transparent")
+        button_checkbox_frame.grid(row=1, column=0, pady=(5,10))
+
+        # --- Clear Display Button ---
+        self.clear_log_button = ctk.CTkButton(button_checkbox_frame, text=tr("button_clear_output"), command=self._clear_textbox, width=120, font=gui_layout.FONT_NORMAL)
+        self.clear_log_button.pack(side="left", padx=(0, 10)) # Add padding to the right
+
+        # --- Clear Log File Checkbox (Moved here) ---
+        self.clear_log_checkbox = ctk.CTkCheckBox(button_checkbox_frame, text=tr("checkbox_clear_log"), font=gui_layout.FONT_NORMAL)
+        if self.config.get("clear_log_on_start", False): self.clear_log_checkbox.select()
+        self.clear_log_checkbox.pack(side="left")
 
     def _create_status_bar_v3(self, parent_frame):
         """ Creates the status bar with two sections and seamless background. """
@@ -520,10 +581,10 @@ class WhisperGUI(ctk.CTk):
         menu_padx = (0, 10) # Reduced horizontal padding after menus
         for i in range(8):
             selectors_frame.columnconfigure(i, weight=0)
-        
+
         for col in range(0, 9):
             selectors_frame.grid_columnconfigure(col, pad=1)
-        
+
         # --- Appearance Mode Selector ---
         self.appearance_mode_label = ctk.CTkLabel(selectors_frame, text=tr("label_appearance_mode"), font=gui_layout.FONT_NORMAL)
         self.appearance_mode_label.grid(row=0, column=0, padx=(5, 5), pady=5, sticky="e") # Column 0
@@ -539,7 +600,7 @@ class WhisperGUI(ctk.CTk):
         )
         self.appearance_mode_optionmenu.set(current_appearance_mode)
         self.appearance_mode_optionmenu.grid(row=0, column=1, padx=(0, 5), pady=5, sticky="e") # Column 1
-        
+
         # --- Color Theme Selector ---
         self.color_theme_label = ctk.CTkLabel(selectors_frame, text=tr("label_color_theme"), font=gui_layout.FONT_NORMAL)
         self.color_theme_label.grid(row=0, column=2, padx=(5, 5), pady=5, sticky="e") # Column 2
@@ -593,8 +654,8 @@ class WhisperGUI(ctk.CTk):
                 self.sb_indicator_light.configure(fg_color="green" if sb_enabled else "grey")
         except Exception as e:
             logger.warning(f"Could not update initial service indicators: {e}")
-            
-            
+
+
     def _update_ffmpeg_status(self):
         """Checks FFMPEG path and updates the GUI elements."""
         logger.debug("Checking FFMPEG status...")
@@ -865,7 +926,7 @@ class WhisperGUI(ctk.CTk):
             self.sb_prefix_label.configure(text=tr("label_integration_prefix"), font=gui_layout.FONT_BOLD)
             self.stt_prefix_entry.configure(font=gui_layout.FONT_NORMAL)
             self.replacement_botname_label.configure(text=tr("label_replacement_botname"), font=gui_layout.FONT_BOLD)
-            self.replacement_botname_entry.configure(font=gui_layout.FONT_NORMAL) # Ensure font is reapplied            
+            self.replacement_botname_entry.configure(font=gui_layout.FONT_NORMAL) # Ensure font is reapplied
 
             # Update dynamic texts within loop
             try: # Safely update port info label
@@ -895,6 +956,13 @@ class WhisperGUI(ctk.CTk):
             self.silence_label.configure(text=tr("label_silence_threshold"), font=gui_layout.FONT_BOLD)
             self.silence_threshold_entry.configure(font=gui_layout.FONT_NORMAL)
             self.clear_log_checkbox.configure(text=tr("checkbox_clear_log"), font=gui_layout.FONT_NORMAL)
+
+            # --- VAD Widgets ---
+            self.vad_enable_checkbox.configure(text=tr("checkbox_use_vad"), font=gui_layout.FONT_NORMAL)
+            self.vad_threshold_label.configure(text=tr("label_vad_threshold"), font=gui_layout.FONT_BOLD)
+            self.vad_threshold_entry.configure(font=gui_layout.FONT_NORMAL)
+            self.vad_min_silence_label.configure(text=tr("label_vad_min_silence"), font=gui_layout.FONT_BOLD)
+            self.vad_min_silence_entry.configure(font=gui_layout.FONT_NORMAL)
 
             # Right Panel
             self.ws_indicator_label.configure(font=gui_layout.FONT_NORMAL) # Re-apply font
@@ -1534,41 +1602,81 @@ class WhisperGUI(ctk.CTk):
     def _gather_runtime_config_dict(self):
         """ Gathers current settings from GUI elements into a dictionary. """
         try:
-            # Create the dictionary
+            # Get VAD parameters, provide defaults if conversion fails or widgets don't exist
+            try: vad_threshold = float(self.vad_threshold_entry.get())
+            except (ValueError, tk.TclError, AttributeError): vad_threshold = DEFAULT_VAD_THRESHOLD
+            try: vad_min_silence_ms = int(self.vad_min_silence_entry.get())
+            except (ValueError, tk.TclError, AttributeError): vad_min_silence_ms = DEFAULT_VAD_MIN_SILENCE_MS
+            # Add similar try-except for vad_min_speech_ms if implemented
+
+            # Get VAD enabled state
+            try: use_vad_state = bool(self.vad_enable_checkbox.get())
+            except (tk.TclError, AttributeError): use_vad_state = DEFAULT_USE_VAD
+
             config_dict = {
-                "mode": self._tab_name_to_mode_safe(self.tab_view.get()),
-                "openai_api_key": self.openai_api_key_entry.get(),
-                "elevenlabs_api_key": self.elevenlabs_api_key_entry.get(),
-                "mic_name": self.mic_combobox.get(), # Full name as selected
-                "local_model": self.model_combobox.get(),
-                "language": self.language_entry.get().strip(),
-                "language_ui": self.current_lang_code,
-                "log_level": self.config.get("log_level", DEFAULT_LOG_LEVEL), # Get from internal config
-                "output_format": self.format_var.get(),
-                "output_filepath": self.filepath_entry.get().strip(),
-                "clear_log_on_start": bool(self.clear_log_checkbox.get()),
-                "min_buffer_duration": float(self.min_buffer_entry.get()),
-                "silence_threshold": float(self.silence_threshold_entry.get()),
-                "elevenlabs_model_id": self.elevenlabs_model_id_entry.get(),
-                "filter_parentheses": bool(self.filter_parentheses_checkbox.get()),
-                "websocket_enabled": bool(self.websocket_enable_checkbox.get()),
-                "websocket_port": int(self.websocket_port_entry.get()),
-                "streamerbot_ws_enabled": bool(self.streamerbot_ws_enable_checkbox.get()),
-                "streamerbot_ws_url": self.streamerbot_ws_url_entry.get(),
-                "stt_prefix": self.stt_prefix_entry.get(),
-                "replacement_botname": self.replacement_botname_entry.get().strip() # Read value from new entry
+                # --- Add VAD Settings ---
+                "use_vad": use_vad_state,
+                "vad_threshold": vad_threshold,
+                "vad_min_silence_ms": vad_min_silence_ms,
+                # Add vad_min_speech_ms here if implemented
+                # "vad_min_speech_ms": vad_min_speech_ms,
             }
+            # Add other settings safely
+            try: config_dict["mode"] = self._tab_name_to_mode_safe(self.tab_view.get())
+            except AttributeError: config_dict["mode"] = "local" # Fallback
+            try: config_dict["openai_api_key"] = self.openai_api_key_entry.get()
+            except AttributeError: config_dict["openai_api_key"] = ""
+            try: config_dict["elevenlabs_api_key"] = self.elevenlabs_api_key_entry.get()
+            except AttributeError: config_dict["elevenlabs_api_key"] = ""
+            try: config_dict["mic_name"] = self.mic_combobox.get()
+            except AttributeError: config_dict["mic_name"] = None
+            try: config_dict["local_model"] = self.model_combobox.get()
+            except AttributeError: config_dict["local_model"] = DEFAULT_LOCAL_MODEL
+            try:
+                    config_dict["openai_model"] = self.openai_model_combobox.get()
+                    if config_dict["openai_model"] not in AVAILABLE_OPENAI_MODELS:
+                        logger.warning(f"Invalid OpenAI model '{config_dict['openai_model']}' selected in GUI, falling back to default.")
+                        config_dict["openai_model"] = DEFAULT_OPENAI_MODEL
+            except AttributeError:
+                config_dict["openai_model"] = DEFAULT_OPENAI_MODEL
+            try: config_dict["language"] = self.language_entry.get().strip()
+            except AttributeError: config_dict["language"] = ""
+            config_dict["language_ui"] = self.current_lang_code
+            config_dict["log_level"] = self.config.get("log_level", DEFAULT_LOG_LEVEL)
+            try: config_dict["output_format"] = self.format_var.get()
+            except AttributeError: config_dict["output_format"] = DEFAULT_OUTPUT_FORMAT
+            try: config_dict["output_filepath"] = self.filepath_entry.get().strip()
+            except AttributeError: config_dict["output_filepath"] = ""
+            try: config_dict["clear_log_on_start"] = bool(self.clear_log_checkbox.get())
+            except AttributeError: config_dict["clear_log_on_start"] = False
+            try: config_dict["min_buffer_duration"] = float(self.min_buffer_entry.get())
+            except (ValueError, tk.TclError, AttributeError): config_dict["min_buffer_duration"] = DEFAULT_MIN_BUFFER_SEC
+            try: config_dict["silence_threshold"] = float(self.silence_threshold_entry.get())
+            except (ValueError, tk.TclError, AttributeError): config_dict["silence_threshold"] = DEFAULT_SILENCE_SEC
+            try: config_dict["elevenlabs_model_id"] = self.elevenlabs_model_id_entry.get()
+            except AttributeError: config_dict["elevenlabs_model_id"] = DEFAULT_ELEVENLABS_MODEL
+            try: config_dict["filter_parentheses"] = bool(self.filter_parentheses_checkbox.get())
+            except AttributeError: config_dict["filter_parentheses"] = True
+            try: config_dict["websocket_enabled"] = bool(self.websocket_enable_checkbox.get())
+            except AttributeError: config_dict["websocket_enabled"] = False
+            try: config_dict["websocket_port"] = int(self.websocket_port_entry.get())
+            except (ValueError, tk.TclError, AttributeError): config_dict["websocket_port"] = WEBSOCKET_PORT
+            try: config_dict["streamerbot_ws_enabled"] = bool(self.streamerbot_ws_enable_checkbox.get())
+            except AttributeError: config_dict["streamerbot_ws_enabled"] = False
+            try: config_dict["streamerbot_ws_url"] = self.streamerbot_ws_url_entry.get()
+            except AttributeError: config_dict["streamerbot_ws_url"] = DEFAULT_STREAMERBOT_WS_URL
+            try: config_dict["stt_prefix"] = self.stt_prefix_entry.get()
+            except AttributeError: config_dict["stt_prefix"] = DEFAULT_STT_PREFIX
+            try: config_dict["replacement_botname"] = self.replacement_botname_entry.get().strip()
+            except AttributeError: config_dict["replacement_botname"] = DEFAULT_REPLACEMENT_BOTNAME
+            
+
             config_dict["appearance_mode"] = self.config.get("appearance_mode", DEFAULT_APPEARANCE_MODE)
             config_dict["color_theme"] = self.config.get("color_theme", DEFAULT_COLOR_THEME)
-            # Perform quick sanity checks on numeric conversions again
-            # CORRECTED INDENTATION: These lines are now at the same level as config_dict assignment
-            float(config_dict["min_buffer_duration"])
-            float(config_dict["silence_threshold"])
-            int(config_dict["websocket_port"])
+
             return config_dict
-        # CORRECTED INDENTATION: except block is now at the same level as 'try'
-        except (tk.TclError, AttributeError, ValueError) as e:
-            # Catch errors if widgets don't exist or values are invalid
+        except Exception as e:
+            # Catch any other unexpected errors during gathering
             logger.error(tr("log_gui_runtime_config_error", error=e))
             self._update_status("status_error_reading_settings", error=e, level="error", is_key=True)
             return None # Indicate failure
@@ -1580,7 +1688,10 @@ class WhisperGUI(ctk.CTk):
 
         # Choose filter patterns based on mode
         filter_patterns_to_use = self.loaded_filter_patterns_el if processing_mode == "elevenlabs" else self.loaded_filter_patterns
-
+        # Get VAD settings safely from the config dict using defaults
+        use_vad = current_config.get("use_vad", DEFAULT_USE_VAD)
+        vad_threshold = current_config.get("vad_threshold", DEFAULT_VAD_THRESHOLD)
+        vad_min_silence_ms = current_config.get("vad_min_silence_ms", DEFAULT_VAD_MIN_SILENCE_MS)
         # Get the internal device ID from the selected display name
         selected_mic_name = current_config['mic_name']
         device_id = self.available_mics.get(selected_mic_name)
@@ -1596,6 +1707,7 @@ class WhisperGUI(ctk.CTk):
             "samplerate": DEFAULT_SAMPLERATE,
             "channels": DEFAULT_CHANNELS,
             "model_name": current_config['local_model'],
+            "openai_model_selected": current_config['openai_model'],
             "language": current_config['language'] or None, # Pass None if empty
             "output_file": current_config['output_filepath'],
             "file_format": current_config['output_format'],
@@ -1612,9 +1724,15 @@ class WhisperGUI(ctk.CTk):
             "stop_recording_flag": self.flags['stop_recording'],
             "loaded_replacements": self.loaded_replacements,
             "filter_patterns": filter_patterns_to_use,
+            # --- Pass VAD Settings to Worker ---
+            "use_vad": use_vad, # Pass the boolean flag
+            "vad_threshold": vad_threshold,
+            "vad_min_silence_ms": vad_min_silence_ms,
+            # Pass vad_min_speech_ms here if implemented
+            # "vad_min_speech_ms": vad_min_speech_ms,
         }
 
-        logger.debug(tr("log_gui_worker_preparation", output_file=args['output_file']))
+        logger.debug(tr("log_gui_worker_preparation", output_file=args.get('output_file','N/A')))
         return args
 
     def _process_gui_queue(self):
@@ -1884,6 +2002,38 @@ class WhisperGUI(ctk.CTk):
         if hasattr(self, 'sb_indicator_light'): self.sb_indicator_light.configure(fg_color="grey")
         if stopped: self._update_status("status_sb_client_stopped", level="info", is_key=True)
 
+    def _on_vad_enable_change(self):
+        """Callback function when the VAD enable checkbox is toggled."""
+        try:
+            is_enabled = bool(self.vad_enable_checkbox.get())
+            logger.debug(f"VAD Enable checkbox toggled: {is_enabled}")
+            self.config["use_vad"] = is_enabled # Update in-memory config
+
+            # Determine state for widgets
+            vad_widget_state = 'normal' if is_enabled else 'disabled'
+            traditional_widget_state = 'disabled' if is_enabled else 'normal'
+
+            # Enable/disable VAD settings
+            logger.debug(f"Configuring VAD widgets to: {vad_widget_state}") # Add debug
+            self.vad_threshold_label.configure(state=vad_widget_state)
+            self.vad_threshold_entry.configure(state=vad_widget_state)
+            self.vad_min_silence_label.configure(state=vad_widget_state)
+            self.vad_min_silence_entry.configure(state=vad_widget_state)
+            # Add configure calls for vad_min_speech widgets here if implemented
+
+            # Enable/disable traditional settings
+            logger.debug(f"Configuring traditional widgets to: {traditional_widget_state}") # Add debug
+            self.min_buffer_label.configure(state=traditional_widget_state)
+            self.min_buffer_entry.configure(state=traditional_widget_state)
+            self.silence_label.configure(state=traditional_widget_state)
+            self.silence_threshold_entry.configure(state=traditional_widget_state)
+            logger.debug("Widget states configured.")
+
+        except AttributeError as e:
+            # Widgets might not be fully created during initial setup
+            logger.warning(f"Error accessing widgets in _on_vad_enable_change (possibly during init): {e}")
+        except Exception as e:
+            logger.exception("Unexpected error in _on_vad_enable_change callback.")
 
     # --- Helper methods ---
     def _mode_to_tab_name(self, mode_str):
@@ -1964,3 +2114,4 @@ class WhisperGUI(ctk.CTk):
         logger.info(tr("log_gui_application_terminated"))
         # Optional: Force exit if threads are hanging? (Use cautiously)
         # sys.exit(0)
+

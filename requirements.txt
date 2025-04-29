@@ -1,4 +1,4 @@
-# requirements.txt
+# requirements.txt [updated]
 
 # --- Core GUI & Audio ---
 customtkinter>=5.2.0
@@ -10,6 +10,9 @@ numpy>=1.20.0
 openai>=1.0.0          # For OpenAI Whisper API
 elevenlabs>=1.0.0      # For ElevenLabs STT API
 soundfile>=0.12.0      # For audio formatting (API input)
+
+# --- Voice Activity Detection ---
+silero-vad-lite>=0.2.1   # Lightweight Silero VAD implementation
 
 # --- WebSocket for external control / Streamer.bot ---
 websockets>=12.0

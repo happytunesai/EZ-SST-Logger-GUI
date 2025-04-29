@@ -6,6 +6,9 @@ Paths are relative to the project's main directory (where main.py is located).
 import os
 import logging
 
+# --- APP Version ---
+APP_VERSION = "1.1.9" # Updated version
+
 # --- Directories ---
 CONFIG_DIR = "config"
 FILTER_DIR = "filter"
@@ -38,6 +41,16 @@ LOG_LEVELS = {
     "CRITICAL": logging.CRITICAL
 }
 LOG_LEVEL_NAMES = list(LOG_LEVELS.keys())
+
+# --- VAD Settings --- # << NEW SECTION
+DEFAULT_USE_VAD = False
+DEFAULT_VAD_THRESHOLD = 0.55  # Default probability threshold
+DEFAULT_VAD_MIN_SILENCE_MS = 2500 # Default minimum silence duration in milliseconds
+DEFAULT_VAD_MIN_SPEECH_MS = 200 # Default minimum speech duration in milliseconds (Added for completeness)
+
+# Segment buffer parameters - used if you implement the buffer approach
+max_gap_sec = 1.0           # Shorter maximum gap (was 1.5)
+min_merged_duration_sec = 0.7  # Longer minimum segment duration (was 0.5)
 
 # --- Network settings ---
 WEBSOCKET_PORT = 8765
@@ -74,7 +87,6 @@ AVAILABLE_COLOR_THEMES = [ # themes form https://github.com/a13xe/CTkThemesPack?
 ]
 # --- Default values & configuration ---
 DEFAULT_STT_PREFIX = "StreamerXY speaks: " # User's prefix from log
-APP_VERSION = "1.1.8" # Updated version
 DEFAULT_SAMPLERATE = 16000
 DEFAULT_CHANNELS = 1
 DEFAULT_ENERGY_THRESHOLD = 50
@@ -82,7 +94,9 @@ DEFAULT_MIN_BUFFER_SEC = 5.0
 DEFAULT_SILENCE_SEC = 2.0
 DEFAULT_ELEVENLABS_MODEL = "scribe_v1"
 DEFAULT_LOCAL_MODEL = "base"
+DEFAULT_OPENAI_MODEL = "whisper-1" # Default model: "whisper-1" | other models: "gpt-4o-mini-transcribe", "gpt-4o-transcribe"
 DEFAULT_OUTPUT_FORMAT = "txt"
+AVAILABLE_OPENAI_MODELS = ["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"]
 
 # --- Default filters for OpenAI API (filter_patterns.txt) ---
 DEFAULT_FILTER_PATTERNS_STR = [
