@@ -1,20 +1,10 @@
-<<<<<<< HEAD
 # ![EZ_STT_GUI_LOGO_50](https://github.com/user-attachments/assets/9ccc03b2-6c16-4956-aa49-76c95fdd323a) EZ STT Logger GUI
-=======
-
-# ![EZ_STT_GUI_LOGO_50](https://github.com/user-attachments/assets/9ccc03b2-6c16-4956-aa49-76c95fdd323a) EZ STT Logger GUI
-
->>>>>>> 21358d2f42e1669d4b4ca33fb82545a056aeae08
 
 **Version:** 1.1.9
 **Status:** Release
 
 ---
-<<<<<<< HEAD
 ![EZ_SST_Logger_GUI_v1.1.9](https://github.com/user-attachments/assets/19c20df4-10fb-4f32-b0db-183f504b5b44)
-=======
-![EZ_SST_Logger_GUI_v1.1.8](https://github.com/user-attachments/assets/69a941e8-3fc4-47de-8cf0-1003bf228d64)
->>>>>>> 21358d2f42e1669d4b4ca33fb82545a056aeae08
 
 ## Overview
 
@@ -244,8 +234,4 @@ or try to dump it [here](https://github.com/happytunesai/EZ-STT-Logger-GUI/issue
 
 ---
 
-<<<<<<< HEAD
 *Created with ❤️ + AI* ![EZ_STT_GUI_LOGO_150](https://github.com/user-attachments/assets/92017d80-a529-49bd-b56f-53ddd3bcabd7)
-=======
-*Created with ❤️ + AI* ![EZ_STT_GUI_LOGO_150](https://github.com/user-attachments/assets/92017d80-a529-49bd-b56f-53ddd3bcabd7)
->>>>>>> 21358d2f42e1669d4b4ca33fb82545a056aeae08
