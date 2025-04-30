@@ -10,7 +10,7 @@
 
 The **EZ STT Logger GUI** is a versatile graphical application for real-time speech-to-text (STT) recognition and audio logging. Now available as a **standalone executable** for Windows, making it easier than ever to use without installing Python or dependencies!
 
-The app supports multiple modes – from local Whisper models (with integrated FFmpeg detection) and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options. **Version 1.1.9 fully integrates an optional Voice Activity Detection (VAD) system** into the audio processing pipeline to improve speech segmentation and adds an **OpenAI model selector**.
+The app supports multiple modes – from local Whisper models (with integrated FFmpeg detection) and using the OpenAI and ElevenLabs APIs to WebSocket-based control and integration options. **Fully integrates an optional Voice Activity Detection (VAD) system** into the audio processing pipeline to improve speech segmentation and adds an **OpenAI model selector**.
 
 It was created to provide enhanced STT features for Streamer.bot, often complementing **PNGTuber-GPT** addon setups (like the extended version by [happytunesai](https://github.com/happytunesai/PNGTuber-GPT-WS), based on the original by [RapidRabbit-11485](https://github.com/RapidRabbit-11485/PNGTuber-GPT)).
 
@@ -24,9 +24,9 @@ It features an intuitive interface, extensive configuration options, dynamic lan
 * **Multiple Transcription Modes:**
     * **Local (Whisper):** Use local Whisper models (e.g., *tiny*, *base*, *small*, *medium*, *large*) for transcription directly on your computer. Requires separate FFmpeg installation added to PATH.
     * **OpenAI API:** Utilize powerful OpenAI speech recognition via your API key.
-        * **Model Selector (New in v1.1.9):** Choose between different OpenAI STT models directly in the GUI (`whisper-1` (default), `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`). Your selection is saved in the configuration.
+        * **Model Selector:** Choose between different OpenAI STT models directly in the GUI (`whisper-1` (default), `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`). Your selection is saved in the configuration.
     * **ElevenLabs API:** Leverage the ElevenLabs API for STT.
-* **Voice Activity Detection (VAD) (Integrated in v1.1.9):**
+* **Voice Activity Detection (VAD):**
     * **Fully Functional VAD System:** Uses `silero-vad-lite` (with ONNX runtime) for efficient speech detection. When enabled, VAD logic handles audio segmentation in the processing pipeline.
     * **GUI Controls:** Enable/disable VAD via a checkbox in the main settings area. Configure "VAD Threshold" and "VAD Min Silence (ms)" when enabled.
     * **Dynamic UI:** VAD controls enable/disable automatically. When VAD is *enabled*, the traditional "Min. Buffer" / "Silence Detection" settings are disabled. When VAD is *disabled*, the VAD settings are disabled, and the traditional settings become active.
@@ -49,13 +49,12 @@ It features an intuitive interface, extensive configuration options, dynamic lan
 * **Info Tab & Update Checker:** Application info, links, and integrated GitHub release checker with direct download link for updates.
 * **Refined GUI & Dynamic Language Support:**
     * Modern layout with grouped controls and status indicators (WebSocket, Streamer.bot connection, Recording).
-    * **UI Adjustments (v1.1.9):** The "Clear log file on start" checkbox is now correctly positioned next to the "Clear Display" button below the output area.
     * **PyInstaller Compatibility:** Path handling refined to ensure configuration, filters, logs, themes, and language files work correctly when run as an executable.
-    * Automatic detection and selection of UI languages (`language/*.json`). Includes English, German, French, Spanish. Easy to add more. **VAD-related UI text added and translated (v1.1.9).** Language files optimized.
+    * Automatic detection and selection of UI languages (`language/*.json`). Includes English, German, French, Spanish. Easy to add more.
     * Multi-Tab interface (Local, OpenAI, ElevenLabs, WebSocket, Integration, Info).
     * Adjustable Console Log Level via GUI.
 * **Security & Configuration:** API key encryption (`secret.key`), settings saved in `config/config.json` next to the executable or script (includes OpenAI model choice and VAD settings).
-* **Logging & Error Handling:** Comprehensive file logging (`logs/`), GUI status messages. Includes VAD-specific log messages. Minor bug fixes related to variable handling between modes and VAD implemented (v1.1.9).
+* **Logging & Error Handling:** Comprehensive file logging (`logs/`), GUI status messages. Includes VAD-specific log messages. Minor bug fixes related to variable handling between modes and VAD implemented.
 * **Interactive Elements:** Context menu in output (copy, add filter, add replacement for Botname), file dialogs, "Clear log file on start" checkbox (controls transcription output file clearing).
 
 ---
@@ -68,7 +67,7 @@ It features an intuitive interface, extensive configuration options, dynamic lan
 * **Running from Source:**
     * Requires **Python 3.10 or higher**.
     * All packages listed in `requirements.txt`. Install using `pip install -r requirements.txt`.
-        * Key additions/updates for v1.1.9: `silero-vad-lite>=0.2.1`, `onnxruntime`. Ensure other dependencies are up-to-date.
+        * Key additions/updates: `silero-vad-lite>=0.2.1`, `onnxruntime`. Ensure other dependencies are up-to-date.
     * **FFmpeg:** Required for Local Whisper mode (install separately, add to PATH). The app will check for it.
     * **`openai-whisper`:** Required for Local Whisper mode (`pip install -U openai-whisper`).
 
