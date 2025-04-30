@@ -79,7 +79,7 @@ Choose the method that best suits you:
 
 **Option 1: Using the Executable (Recommended for most users)**
 
-1.  **Download:** Go to the [**GitHub Releases page**](https://github.com/happytunesai/EZ-STT-Logger-GUI/releases/latest) and download the `EZ_STT_Logger_GUI.zip` file for the latest version (v1.1.9 or newer).
+1.  **Download:** Go to the [**GitHub Releases page**](https://github.com/happytunesai/EZ-STT-Logger-GUI/releases/latest) and download the `EZ_STT_Logger_GUI.zip` file for the latest version.
 2.  **Extract:** Extract the `.zip` file. This will create a folder named `EZ_STT_Logger_GUI` containing the executable and subfolders like `themes`, `language`.
 3.  **Place:** Move this extracted `EZ_STT_Logger_GUI` folder to a location of your choice (e.g., Desktop, `C:\Tools\`).
 4.  **FFmpeg (For Local Whisper Only):** Follow the steps outlined in the "Dependencies" section if you need Local Whisper mode. The app will guide you via the "Local" tab.
